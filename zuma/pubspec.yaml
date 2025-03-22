@@ -30,14 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
+  google_sign_in: 6.1.6  # Using specific version instead of ^6.3.0
   camera: ^0.10.0+4
   permission_handler: ^10.2.0
   qr_code_scanner: ^1.0.1
@@ -46,12 +40,17 @@ dev_dependencies:
   table_calendar: ^3.0.9
   mongo_dart: ^0.9.1 
   flutter_dotenv: ^5.2.1
-  google_sign_in: ^6.3.0
-  image_picker: ^0.8.7+5  # Use the latest version available
+  image_picker: ^0.8.7+5
   uuid: ^3.0.7
   path: ^1.8.3
+  firebase_core: ^3.12.1
+  firebase_auth: ^5.5.1
+  shared_preferences: ^2.2.0
 
-
+  
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -74,8 +73,6 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - .env
-
-
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
