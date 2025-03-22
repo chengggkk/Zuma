@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
 import 'navbar.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // Add this line
+
+  try {
+    await dotenv.load(fileName: ".env");
+    print("Environment variables loaded successfully");
+  } catch (e) {
+    print("Error loading environment variables: $e");
+    // Continue anyway, the app might have hardcoded fallbacks
+  }
+
   runApp(const MyApp());
 }
 

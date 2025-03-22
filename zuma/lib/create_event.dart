@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:mongo_dart/mongo_dart.dart' as mongo;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'navbar.dart'; // Import the bottom navigation bar
 
 class CreateEventPage extends StatefulWidget {
   const CreateEventPage({super.key});
@@ -14,18 +17,129 @@ class _CreateEventPageState extends State<CreateEventPage> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
 
-  // Default values
-  DateTime _startTime = DateTime(2025, 3, 19, 16, 0); // 4:00 PM
-  DateTime _endTime = DateTime(2025, 3, 19, 17, 0); // 5:00 PM
+  // Default values - using current date instead of hardcoded dates
+  late DateTime _startTime;
+  late DateTime _endTime;
   final bool _isPublic = true;
   final String _participantLimit = "Unlimited"; // Unlimited participants
+
+  // Category selection
+  String _selectedCategory = "AI"; // Default category
+  final List<String> _categories = [
+    "AI",
+    "Blockchain",
+    "Web3",
+    "Tech",
+    "Social",
+    "Other",
+  ];
+
+  // Loading state
+  bool _isLoading = false;
+
+  // MongoDB connection
+  mongo.Db? _db;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeDates();
+    _loadEnvAndConnectDB();
+  }
+
+  // Initialize dates with current date
+  void _initializeDates() {
+    final now = DateTime.now();
+    _startTime = DateTime(now.year, now.month, now.day, 16, 0); // 4:00 PM
+    _endTime = DateTime(now.year, now.month, now.day, 17, 0); // 5:00 PM
+  }
+
+  // Load environment variables before connecting to DB
+  Future<void> _loadEnvAndConnectDB() async {
+    try {
+      await dotenv
+          .load(); // Make sure this completes before using env variables
+      await _connectToMongoDB();
+    } catch (e) {
+      print("Error loading environment variables: $e");
+    }
+  }
+
+  // Connect to MongoDB
+  Future<void> _connectToMongoDB() async {
+    try {
+      // Get MongoDB URI from .env file
+      final mongoUri = dotenv.env['MONGODB_URI'] ?? '';
+
+      if (mongoUri.isEmpty) {
+        print("Error: MONGODB_URI not found in .env file");
+        return;
+      }
+
+      _db = await mongo.Db.create(mongoUri);
+      await _db!.open();
+      print("Connected to MongoDB");
+    } catch (e) {
+      print("Error connecting to MongoDB: $e");
+    }
+  }
+
+  // Save event to MongoDB
+  Future<bool> _saveEventToMongoDB(Map<String, dynamic> eventData) async {
+    try {
+      if (_db == null || !_db!.isConnected) {
+        // Attempt to reconnect
+        await _connectToMongoDB();
+
+        // If still not connected, return false
+        if (_db == null || !_db!.isConnected) {
+          print("Failed to connect to MongoDB");
+          return false;
+        }
+      }
+
+      final eventsCollection = _db!.collection('events');
+
+      // Convert DateTime objects to ISO strings for MongoDB
+      final Map<String, dynamic> eventDoc = {
+        'name': eventData['name'],
+        'startTime': eventData['startTime'].toIso8601String(),
+        'endTime': eventData['endTime'].toIso8601String(),
+        'location': eventData['location'],
+        'description': eventData['description'],
+        'isPublic': eventData['isPublic'],
+        'participantLimit': eventData['participantLimit'],
+        'category': eventData['category'], // Add category field
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+
+      final result = await eventsCollection.insertOne(eventDoc);
+      return result.isSuccess;
+    } catch (e) {
+      print("Error saving event to MongoDB: $e");
+      return false;
+    }
+  }
 
   @override
   void dispose() {
     _eventNameController.dispose();
     _descriptionController.dispose();
     _locationController.dispose();
+    _closeMongoDBConnection();
     super.dispose();
+  }
+
+  // Close MongoDB connection
+  Future<void> _closeMongoDBConnection() async {
+    try {
+      if (_db != null && _db!.isConnected) {
+        await _db!.close();
+        print("Closed MongoDB connection");
+      }
+    } catch (e) {
+      print("Error closing MongoDB connection: $e");
+    }
   }
 
   @override
@@ -141,6 +255,53 @@ class _CreateEventPageState extends State<CreateEventPage> {
                         hintStyle: TextStyle(color: Colors.white70),
                         border: InputBorder.none,
                       ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter an event name';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Category Selection
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'Category',
+                        labelStyle: TextStyle(color: Colors.white),
+                        border: InputBorder.none,
+                      ),
+                      dropdownColor: const Color(0xFF8E77AC),
+                      style: const TextStyle(color: Colors.white),
+                      icon: const Icon(
+                        Icons.arrow_drop_down,
+                        color: Colors.white,
+                      ),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedCategory = newValue!;
+                        });
+                      },
+                      items:
+                          _categories.map<DropdownMenuItem<String>>((
+                            String value,
+                          ) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value),
+                            );
+                          }).toList(),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -150,17 +311,26 @@ class _CreateEventPageState extends State<CreateEventPage> {
                     title: 'Start',
                     time: _startTime,
                     onTap: () async {
+                      // Get current date for the picker
+                      final now = DateTime.now();
+
                       final DateTime? picked = await showDatePicker(
                         context: context,
-                        initialDate: _startTime,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime(2026),
+                        initialDate: now, // Use current date
+                        firstDate: now, // Use current date
+                        lastDate: DateTime(
+                          now.year + 1,
+                          now.month,
+                          now.day,
+                        ), // One year from now
                       );
+
                       if (picked != null) {
                         final TimeOfDay? pickedTime = await showTimePicker(
                           context: context,
                           initialTime: TimeOfDay.fromDateTime(_startTime),
                         );
+
                         if (pickedTime != null) {
                           setState(() {
                             _startTime = DateTime(
@@ -170,6 +340,13 @@ class _CreateEventPageState extends State<CreateEventPage> {
                               pickedTime.hour,
                               pickedTime.minute,
                             );
+
+                            // Update end time to be after start time
+                            if (_endTime.isBefore(_startTime)) {
+                              _endTime = _startTime.add(
+                                const Duration(hours: 1),
+                              );
+                            }
                           });
                         }
                       }
@@ -188,6 +365,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
                       );
                       if (pickedTime != null) {
                         setState(() {
+                          // Make sure end time is on same day as start time
                           _endTime = DateTime(
                             _startTime.year,
                             _startTime.month,
@@ -195,6 +373,11 @@ class _CreateEventPageState extends State<CreateEventPage> {
                             pickedTime.hour,
                             pickedTime.minute,
                           );
+
+                          // If end time is before start time, adjust it to the next day
+                          if (_endTime.isBefore(_startTime)) {
+                            _endTime = _endTime.add(const Duration(days: 1));
+                          }
                         });
                       }
                     },
@@ -215,11 +398,13 @@ class _CreateEventPageState extends State<CreateEventPage> {
                         const Icon(Icons.place, color: Colors.white),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: Text(
-                            'Choose Location',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 16,
+                          child: TextFormField(
+                            controller: _locationController,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: const InputDecoration(
+                              hintText: 'Choose Location',
+                              hintStyle: TextStyle(color: Colors.white70),
+                              border: InputBorder.none,
                             ),
                           ),
                         ),
@@ -246,12 +431,15 @@ class _CreateEventPageState extends State<CreateEventPage> {
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: Text(
-                            'Description',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 16,
+                          child: TextFormField(
+                            controller: _descriptionController,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: const InputDecoration(
+                              hintText: 'Description',
+                              hintStyle: TextStyle(color: Colors.white70),
+                              border: InputBorder.none,
                             ),
+                            maxLines: 3,
                           ),
                         ),
                       ],
@@ -355,33 +543,77 @@ class _CreateEventPageState extends State<CreateEventPage> {
                   color: Colors.grey[300],
                   borderRadius: BorderRadius.circular(28),
                 ),
-                child: TextButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      // Process event creation
-                      final eventData = {
-                        'name': _eventNameController.text,
-                        'startTime': _startTime,
-                        'endTime': _endTime,
-                        'location': _locationController.text,
-                        'description': _descriptionController.text,
-                        'isPublic': _isPublic,
-                        'participantLimit': _participantLimit,
-                      };
+                child:
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : TextButton(
+                          onPressed: () async {
+                            if (_formKey.currentState!.validate()) {
+                              setState(() {
+                                _isLoading = true;
+                              });
 
-                      // Handle event creation here
-                      Navigator.pop(context);
-                    }
-                  },
-                  child: const Text(
-                    'Create Event',
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
+                              // Process event creation
+                              final eventData = {
+                                'name': _eventNameController.text,
+                                'startTime': _startTime,
+                                'endTime': _endTime,
+                                'location': _locationController.text,
+                                'description': _descriptionController.text,
+                                'isPublic': _isPublic,
+                                'participantLimit': _participantLimit,
+                                'category': _selectedCategory, // Add category
+                              };
+
+                              // Save to MongoDB
+                              final success = await _saveEventToMongoDB(
+                                eventData,
+                              );
+
+                              setState(() {
+                                _isLoading = false;
+                              });
+
+                              if (success) {
+                                // Show success message
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Event created successfully!',
+                                    ),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+
+                                // Navigate back to the BottomNavBar with proper index
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const BottomNavBar(),
+                                  ),
+                                );
+                              } else {
+                                // Show error message
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Failed to create event. Please try again.',
+                                    ),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          child: const Text(
+                            'Create Event',
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
               ),
             ),
           ],

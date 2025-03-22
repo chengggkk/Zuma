@@ -14,14 +14,24 @@ class BottomNavBar extends StatefulWidget {
 class _BottomNavBarState extends State<BottomNavBar> {
   int _selectedIndex = 0;
 
+  // Mock user email for demo purposes
+  final String currentUserEmail = "user@example.com";
+
   // Pages that will be displayed when navigation items are tapped
-  final List<Widget> _pages = [
-    const HomePage(),
-    const ExplorePage(),
-    const ScanPage(),
-    const CreateEventPage(),
-    const NotificationsPage(),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize pages with the required parameters
+    _pages = [
+      const HomePage(),
+      ExplorePage(currentUserEmail: currentUserEmail), // Pass currentUserEmail
+      const ScanPage(),
+      const CreateEventPage(),
+      const NotificationsPage(),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -95,3 +105,29 @@ class NotificationsPage extends StatelessWidget {
     );
   }
 }
+
+// Remove placeholder classes as they're already defined in their own files
+
+// class ExplorePage extends StatelessWidget {
+//   const ExplorePage({super.key});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(title: const Text('Explore'), elevation: 0),
+//       body: const Center(child: Text('Explore Page Content')),
+//     );
+//   }
+// }
+
+// class ScanPage extends StatelessWidget {
+//   const ScanPage({super.key});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(title: const Text('Scan QR Code'), elevation: 0),
+//       body: const Center(child: Text('Scan QR Code Page Content')),
+//     );
+//   }
+// }
