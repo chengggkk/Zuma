@@ -272,11 +272,6 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _fetchMyEvents,
-        tooltip: 'Refresh Events',
-        child: const Icon(Icons.refresh),
-      ),
     );
   }
 

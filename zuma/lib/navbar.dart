@@ -49,6 +49,8 @@ class _BottomNavBarState extends State<BottomNavBar> {
         onTap: _onItemTapped,
         selectedItemColor: Theme.of(context).primaryColor,
         unselectedItemColor: Colors.grey,
+        showSelectedLabels: true,
+        showUnselectedLabels: false, // Hide labels for unselected items
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),
