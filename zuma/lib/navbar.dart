@@ -29,7 +29,9 @@ class _BottomNavBarWithUserState extends State<BottomNavBarWithUser> {
       HomePage(userEmail: widget.userEmail), // Pass the userEmail parameter
       ExplorePage(currentUserEmail: widget.userEmail), // Pass currentUserEmail
       const ScanPage(),
-      const CreateEventPage(),
+      CreateEventPage(
+        userEmail: widget.userEmail,
+      ), // Pass userEmail to CreateEventPage
       const NotificationsPage(),
     ];
   }

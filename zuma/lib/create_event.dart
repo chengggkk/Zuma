@@ -302,7 +302,9 @@ class _EventBannerUploadState extends State<EventBannerUpload> {
 
 // Main CreateEventPage Widget
 class CreateEventPage extends StatefulWidget {
-  const CreateEventPage({super.key});
+  final String? userEmail; // Make it optional for backward compatibility
+
+  const CreateEventPage({Key? key, this.userEmail}) : super(key: key);
 
   @override
   _CreateEventPageState createState() => _CreateEventPageState();
@@ -400,7 +402,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
     }
   }
 
-  // Update this method in your CreateEventPage class
+  // Modified to use the userEmail passed to the widget
   Future<bool> _saveEventToMongoDB(Map<String, dynamic> eventData) async {
     try {
       if (_db == null || !_db!.isConnected) {
@@ -422,9 +424,8 @@ class _CreateEventPageState extends State<CreateEventPage> {
         imageId = await _gridFSService.uploadImage(eventData['bannerImage']);
       }
 
-      // Get current user email (you'll need to implement this based on your authentication system)
-      final String userEmail =
-          await _getCurrentUserEmail(); // Implement this method
+      // Get current user email
+      final String userEmail = await _getCurrentUserEmail();
 
       // Create attendee for the host
       final hostAttendee = {
@@ -459,14 +460,19 @@ class _CreateEventPageState extends State<CreateEventPage> {
     }
   }
 
-  // Add this method to get the current user's email
+  // Updated method to get the current user's email
   Future<String> _getCurrentUserEmail() async {
-    // Implement based on your authentication system
-    // For example, if using Firebase Auth:
-    // return FirebaseAuth.instance.currentUser?.email ?? 'unknown@example.com';
+    // Use the email passed to the widget if available
+    if (widget.userEmail != null && widget.userEmail!.isNotEmpty) {
+      return widget.userEmail!;
+    }
 
-    // For testing purposes, you can return a static email
-    return 'user@example.com'; // Replace with actual implementation
+    // If no email is provided, throw an error or handle it appropriately
+    // You could get the email from a local storage or authentication service instead
+    throw Exception("User email not provided to CreateEventPage");
+
+    // Alternatively, you could get the email from Firebase Auth if you're using it:
+    // return FirebaseAuth.instance.currentUser?.email ?? throw Exception("No authenticated user found");
   }
 
   @override
