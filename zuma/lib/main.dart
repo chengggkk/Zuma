@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'service/auth/auth_service.dart'; // Import the fixed auth service
+import 'home.dart';
+import 'navbar.dart';
 
 void main() async {
   // Initialize Flutter binding
@@ -19,7 +21,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Google Sign-In Demo',
+      title: 'Google Sign-In',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
@@ -41,6 +43,8 @@ class _SignInPageState extends State<SignInPage> {
   bool _isLoading = false;
 
   // Google Sign-In function using AuthService
+  // Update the _signInWithGoogle method in _SignInPageState class to navigate to HomePage
+  // Then update the _signInWithGoogle method:
   Future<void> _signInWithGoogle() async {
     if (mounted) {
       setState(() {
@@ -54,10 +58,26 @@ class _SignInPageState extends State<SignInPage> {
           await _authService.signInWithGoogle();
 
       if (userCredential != null && userCredential.user != null) {
+        // Navigate to BottomNavBar instead of directly to HomePage
         if (mounted) {
+          // Store user information (you may want to save this in a shared preferences or state management)
+          final String userEmail = userCredential.user!.email!;
+          final String? displayName = userCredential.user!.displayName;
+
+          // Navigate to BottomNavBar
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder:
+                  (context) => BottomNavBarWithUser(
+                    userEmail: userEmail,
+                    username: displayName,
+                  ),
+            ),
+          );
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Signed in as: ${userCredential.user!.email}'),
+              content: Text('Signed in as: $userEmail'),
               backgroundColor: Colors.green,
             ),
           );
@@ -97,7 +117,7 @@ class _SignInPageState extends State<SignInPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign In Demo')),
+      appBar: AppBar(title: const Text('Sign In')),
       body: Center(
         child:
             _isLoading

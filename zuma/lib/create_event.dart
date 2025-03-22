@@ -873,10 +873,18 @@ class _CreateEventPageState extends State<CreateEventPage> {
                                 );
 
                                 // Navigate back to the BottomNavBar with proper index
+                                // Get the current user's email
+                                final userEmail = await _getCurrentUserEmail();
+
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const BottomNavBar(),
+                                    builder:
+                                        (context) => BottomNavBarWithUser(
+                                          userEmail: userEmail,
+                                          username:
+                                              'User', // You can replace this with actual username if available
+                                        ),
                                   ),
                                 );
                               } else {

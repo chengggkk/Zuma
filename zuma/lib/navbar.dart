@@ -4,18 +4,19 @@ import 'explore.dart';
 import 'create_event.dart';
 import 'scan.dart';
 
-class BottomNavBar extends StatefulWidget {
-  const BottomNavBar({super.key});
+class BottomNavBarWithUser extends StatefulWidget {
+  final String userEmail;
+  final String? username;
+
+  const BottomNavBarWithUser({Key? key, required this.userEmail, this.username})
+    : super(key: key);
 
   @override
-  _BottomNavBarState createState() => _BottomNavBarState();
+  _BottomNavBarWithUserState createState() => _BottomNavBarWithUserState();
 }
 
-class _BottomNavBarState extends State<BottomNavBar> {
+class _BottomNavBarWithUserState extends State<BottomNavBarWithUser> {
   int _selectedIndex = 0;
-
-  // Mock user email for demo purposes
-  final String currentUserEmail = "user@example.com";
 
   // Pages that will be displayed when navigation items are tapped
   late final List<Widget> _pages;
@@ -23,10 +24,10 @@ class _BottomNavBarState extends State<BottomNavBar> {
   @override
   void initState() {
     super.initState();
-    // Initialize pages with the required parameters
+    // Initialize pages with the user information
     _pages = [
-      HomePage(userEmail: currentUserEmail), // Pass the userEmail parameter
-      ExplorePage(currentUserEmail: currentUserEmail), // Pass currentUserEmail
+      HomePage(userEmail: widget.userEmail), // Pass the userEmail parameter
+      ExplorePage(currentUserEmail: widget.userEmail), // Pass currentUserEmail
       const ScanPage(),
       const CreateEventPage(),
       const NotificationsPage(),
@@ -84,7 +85,7 @@ class _BottomNavBarState extends State<BottomNavBar> {
 }
 
 class NotificationsPage extends StatelessWidget {
-  const NotificationsPage({super.key});
+  const NotificationsPage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
