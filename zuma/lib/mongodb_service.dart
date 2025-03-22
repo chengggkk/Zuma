@@ -240,6 +240,8 @@ class MongoDBService {
   }
 
   // Add attendee to an event
+  // Updated addAttendeeToEvent method with proper ObjectID handling
+  // Update the addAttendeeToEvent method to work with MongoDB Atlas Free Tier
   static Future<bool> addAttendeeToEvent(
     String eventId,
     Attendee attendee,
@@ -278,27 +280,52 @@ class MongoDBService {
       final existingAttendee = await collection.findOne(query);
 
       if (existingAttendee != null) {
-        print("Attendee already exists for this event");
+        print("Attendee ${attendee.email} already exists for this event");
         return false;
       }
 
-      // Update the document to add the new attendee
-      final updateResult = await collection.update(
-        objectId != null ? where.id(objectId) : where.eq('_id', cleanId),
-        {
-          '\$push': {'attendees': attendee.toMap()},
-        },
-      );
+      // Update the document to add the new attendee - Using a safer approach
+      try {
+        // For Atlas Free Tier, use findAndModify instead of update
+        final updateResult = await collection.findAndModify(
+          query:
+              objectId != null
+                  ? where.id(objectId).map['query']
+                  : where.eq('_id', cleanId).map['query'],
+          update: {
+            '\$push': {'attendees': attendee.toMap()},
+          },
+          returnNew: true,
+        );
 
-      print("Update result: $updateResult");
-      return updateResult['nModified'] > 0;
+        print("Update result: $updateResult");
+
+        // Check if the update was successful by verifying the returned document
+        return updateResult != null;
+      } catch (e) {
+        // If findAndModify fails, try the standard update as fallback
+        print("findAndModify failed, trying standard update: $e");
+        final updateResult = await collection.update(
+          objectId != null ? where.id(objectId) : where.eq('_id', cleanId),
+          {
+            '\$push': {'attendees': attendee.toMap()},
+          },
+        );
+
+        print("Standard update result: $updateResult");
+        // Safer check for MongoDB response
+        return updateResult != null &&
+            (updateResult['ok'] == 1 ||
+                (updateResult['nModified'] != null &&
+                    updateResult['nModified'] > 0));
+      }
     } catch (e) {
       print("Error adding attendee: $e");
       return false;
     }
   }
 
-  // Check if user is already attending
+  // Enhanced isUserAttending method for better error handling
   static Future<bool> isUserAttending(String eventId, String email) async {
     try {
       if (_db == null || !_db!.isConnected) {
@@ -321,7 +348,7 @@ class MongoDBService {
       try {
         objectId = ObjectId.fromHexString(cleanId);
       } catch (e) {
-        print("Couldn't convert to ObjectId, will try string match");
+        print("Couldn't convert to ObjectId, will try string match: $e");
       }
 
       final selector =
@@ -330,9 +357,15 @@ class MongoDBService {
       // Add the "attendees.email" equals check to the selector
       final query = selector.and(where.eq('attendees.email', email));
 
+      print("Checking if user $email is attending event $eventId");
       final event = await collection.findOne(query);
 
-      return event != null;
+      final isAttending = event != null;
+      print(
+        "User $email is ${isAttending ? '' : 'not '}attending event $eventId",
+      );
+
+      return isAttending;
     } catch (e) {
       print("Error checking if user is attending: $e");
       return false;

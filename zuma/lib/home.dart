@@ -3,7 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final String? username; // Properly declare the username property
+  const HomePage({Key? key, this.username}) : super(key: key);
 
   @override
   State<HomePage> createState() => _HomePageState();

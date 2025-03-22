@@ -46,7 +46,7 @@ dev_dependencies:
   table_calendar: ^3.0.9
   mongo_dart: ^0.9.1 
   flutter_dotenv: ^5.2.1
-
+  google_sign_in: ^6.3.0
 
 
   # The "flutter_lints" package below contains a set of recommended lints to

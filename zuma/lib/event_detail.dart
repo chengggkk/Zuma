@@ -87,7 +87,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     }
   }
 
-  // Join the event as an attendee
+  // Update the _joinEvent method to properly handle the event ID
   Future<void> _joinEvent() async {
     if (_event == null) return;
 
@@ -96,16 +96,16 @@ class _EventDetailPageState extends State<EventDetailPage> {
     });
 
     try {
-      // Create attendee object
+      // Create attendee object with email from widget
       final attendee = Attendee(
         email: widget.currentUserEmail,
         role: 'attendee', // Default role for new attendees
         joinedAt: DateTime.now(),
       );
 
-      // Add to database
+      // Add to database - use the correct eventId from widget
       final result = await MongoDBService.addAttendeeToEvent(
-        widget.eventId,
+        widget.eventId, // This should properly pass the MongoDB ObjectId
         attendee,
       );
 
@@ -530,7 +530,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     ),
 
                     const SizedBox(
-                      height: 40,
+                      height: 100,
                     ), // Extra space for the fixed button
                     // Event created time
                     Padding(
@@ -564,61 +564,88 @@ class _EventDetailPageState extends State<EventDetailPage> {
         ),
 
         // Fixed Attend Button at the bottom
-        if (!_isAttending)
-          Positioned(
-            bottom: 20,
-            left: 16,
-            right: 16,
-            child: ElevatedButton(
-              onPressed: _isJoining ? null : _joinEvent,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 4,
-              ),
-              child:
-                  _isJoining
-                      ? const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Text(
-                            'Joining Event...',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      )
-                      : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_circle, size: 24),
-                          SizedBox(width: 8),
-                          Text(
-                            'Attend This Event',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
+        Positioned(
+          bottom: 20,
+          left: 16,
+          right: 16,
+          child:
+              _isAttending
+                  ? ElevatedButton(
+                    onPressed: null, // Button is disabled
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey.shade400,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-            ),
-          ),
+                      elevation: 2,
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.check_circle, size: 24),
+                        SizedBox(width: 8),
+                        Text(
+                          'Already Applied',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                  : ElevatedButton(
+                    onPressed: _isJoining ? null : _joinEvent,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 4,
+                    ),
+                    child:
+                        _isJoining
+                            ? const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Joining Event...',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            )
+                            : const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_circle, size: 24),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Attend This Event',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                  ),
+        ),
       ],
     );
   }
