@@ -47,6 +47,10 @@ dev_dependencies:
   mongo_dart: ^0.9.1 
   flutter_dotenv: ^5.2.1
   google_sign_in: ^6.3.0
+  image_picker: ^0.8.7+5  # Use the latest version available
+  uuid: ^3.0.7
+  path: ^1.8.3
+
 
 
   # The "flutter_lints" package below contains a set of recommended lints to

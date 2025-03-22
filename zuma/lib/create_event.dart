@@ -1,8 +1,306 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
+import 'package:uuid/uuid.dart';
 import 'navbar.dart'; // Import the bottom navigation bar
 
+// GridFS Service Class - handles image storage in MongoDB
+class GridFSService {
+  mongo.Db? _db;
+  mongo.GridFS? _gridFS;
+  final Uuid _uuid = Uuid();
+
+  // Initialize GridFS connection using existing DB connection
+  Future<void> initialize(mongo.Db db) async {
+    _db = db;
+    if (_db != null && _db!.isConnected) {
+      _gridFS = mongo.GridFS(_db!, 'eventImages');
+      print("GridFS initialized successfully");
+    } else {
+      throw Exception("Failed to initialize GridFS: Database not connected");
+    }
+  }
+
+  // Upload an image file to GridFS and return its ID
+  Future<String> uploadImage(File imageFile) async {
+    try {
+      if (_gridFS == null || _db == null) {
+        throw Exception("GridFS not initialized");
+      }
+
+      // Generate a unique filename
+      final String fileName = '${_uuid.v4()}${path.extension(imageFile.path)}';
+
+      // Read the file as bytes
+      final Uint8List fileBytes = await imageFile.readAsBytes();
+
+      // Generate a new ObjectId for the file
+      final id = mongo.ObjectId();
+
+      // Get file size
+      final int fileSize = fileBytes.length;
+
+      // Define chunk size (default is 255KB)
+      final int chunkSize = 255 * 1024;
+
+      // Calculate number of chunks
+      final int numChunks = (fileSize / chunkSize).ceil();
+
+      // Get the collections
+      final filesCollection = _db!.collection('eventImages.files');
+      final chunksCollection = _db!.collection('eventImages.chunks');
+
+      // Create file document
+      final fileDoc = {
+        '_id': id,
+        'length': fileSize,
+        'chunkSize': chunkSize,
+        'uploadDate': DateTime.now(),
+        'filename': fileName,
+        'contentType': _getContentType(imageFile.path),
+        'md5': '', // You could calculate MD5 if needed
+      };
+
+      // Insert file document
+      await filesCollection.insert(fileDoc);
+
+      // Split file into chunks and insert them
+      for (int i = 0; i < numChunks; i++) {
+        final int start = i * chunkSize;
+        final int end =
+            (i + 1) * chunkSize > fileSize ? fileSize : (i + 1) * chunkSize;
+        final Uint8List chunkData = fileBytes.sublist(start, end);
+
+        final chunkDoc = {
+          'files_id': id,
+          'n': i,
+          'data': mongo.BsonBinary.from(chunkData),
+        };
+
+        await chunksCollection.insert(chunkDoc);
+      }
+
+      return id.toHexString();
+    } catch (e) {
+      print("Error uploading image to GridFS: $e");
+      rethrow;
+    }
+  }
+
+  // Get an image by its ID
+  Future<Uint8List?> getImageBytes(String id) async {
+    try {
+      if (_gridFS == null) {
+        throw Exception("GridFS not initialized");
+      }
+
+      final objectId = mongo.ObjectId.fromHexString(id);
+      final file = await _gridFS!.findOne(mongo.where.id(objectId));
+
+      if (file == null) {
+        return null;
+      }
+
+      // Get the chunks collection
+      final chunksCollection = _db!.collection('eventImages.chunks');
+
+      // Query for all chunks belonging to this file
+      final chunks =
+          await chunksCollection
+              .find(mongo.where.eq('files_id', objectId))
+              .toList();
+
+      // Sort the chunks by n (order)
+      chunks.sort((a, b) => a['n'] - b['n']);
+
+      // Combine all chunks into a single Uint8List
+      final List<int> allBytes = [];
+      for (final chunk in chunks) {
+        final binData = chunk['data'];
+        if (binData is mongo.BsonBinary) {
+          allBytes.addAll(binData.byteList);
+        }
+      }
+
+      return Uint8List.fromList(allBytes);
+    } catch (e) {
+      print("Error retrieving image from GridFS: $e");
+      rethrow;
+    }
+  }
+
+  // Helper method to determine content type based on file extension
+  String _getContentType(String filePath) {
+    final ext = path.extension(filePath).toLowerCase();
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.gif':
+        return 'image/gif';
+      case '.webp':
+        return 'image/webp';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+}
+
+// Image Upload Component
+class EventBannerUpload extends StatefulWidget {
+  final Function(File) onImageSelected;
+  final double height;
+
+  const EventBannerUpload({
+    Key? key,
+    required this.onImageSelected,
+    this.height = 220,
+  }) : super(key: key);
+
+  @override
+  _EventBannerUploadState createState() => _EventBannerUploadState();
+}
+
+class _EventBannerUploadState extends State<EventBannerUpload> {
+  File? _imageFile;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? selected = await _picker.pickImage(source: source);
+
+      if (selected != null) {
+        setState(() {
+          _imageFile = File(selected.path);
+        });
+
+        // Call the callback function to notify parent
+        widget.onImageSelected(_imageFile!);
+      }
+    } catch (e) {
+      // Handle any errors
+      print("Error picking image: $e");
+    }
+  }
+
+  void _showImageSourceOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder:
+          (context) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_camera),
+                  title: const Text('Take a photo'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('Choose from gallery'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: widget.height,
+      decoration: BoxDecoration(
+        color: Colors.pink[200],
+        borderRadius: BorderRadius.circular(16),
+        image:
+            _imageFile != null
+                ? DecorationImage(
+                  image: FileImage(_imageFile!),
+                  fit: BoxFit.cover,
+                )
+                : null,
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Only show placeholder content when no image is selected
+          if (_imageFile == null) ...[
+            // Upload instruction when no image
+            Positioned.fill(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(
+                    Icons.add_photo_alternate,
+                    color: Colors.white,
+                    size: 48,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Tap to upload event banner',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Camera icon always visible
+          Positioned(
+            bottom: 10,
+            right: 10,
+            child: InkWell(
+              onTap: _showImageSourceOptions,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[600],
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.camera_alt,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+
+          // Make the entire container tappable
+          Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: _showImageSourceOptions,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Main CreateEventPage Widget
 class CreateEventPage extends StatefulWidget {
   const CreateEventPage({super.key});
 
@@ -37,8 +335,12 @@ class _CreateEventPageState extends State<CreateEventPage> {
   // Loading state
   bool _isLoading = false;
 
+  // Image upload
+  File? _eventBannerImage;
+
   // MongoDB connection
   mongo.Db? _db;
+  final GridFSService _gridFSService = GridFSService();
 
   @override
   void initState() {
@@ -79,12 +381,26 @@ class _CreateEventPageState extends State<CreateEventPage> {
       _db = await mongo.Db.create(mongoUri);
       await _db!.open();
       print("Connected to MongoDB");
+
+      // Initialize GridFS after connecting to MongoDB
+      await _initializeGridFS();
     } catch (e) {
       print("Error connecting to MongoDB: $e");
     }
   }
 
-  // Save event to MongoDB
+  // Initialize GridFS
+  Future<void> _initializeGridFS() async {
+    try {
+      if (_db != null && _db!.isConnected) {
+        await _gridFSService.initialize(_db!);
+      }
+    } catch (e) {
+      print("Error initializing GridFS: $e");
+    }
+  }
+
+  // Save event to MongoDB with image
   Future<bool> _saveEventToMongoDB(Map<String, dynamic> eventData) async {
     try {
       if (_db == null || !_db!.isConnected) {
@@ -100,6 +416,12 @@ class _CreateEventPageState extends State<CreateEventPage> {
 
       final eventsCollection = _db!.collection('events');
 
+      // Upload image if available and get ID
+      String? imageId;
+      if (eventData['bannerImage'] != null) {
+        imageId = await _gridFSService.uploadImage(eventData['bannerImage']);
+      }
+
       // Convert DateTime objects to ISO strings for MongoDB
       final Map<String, dynamic> eventDoc = {
         'name': eventData['name'],
@@ -110,6 +432,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
         'isPublic': eventData['isPublic'],
         'participantLimit': eventData['participantLimit'],
         'category': eventData['category'], // Add category field
+        'bannerImageId': imageId, // Add the image ID
         'createdAt': DateTime.now().toIso8601String(),
       };
 
@@ -164,76 +487,13 @@ class _CreateEventPageState extends State<CreateEventPage> {
               child: ListView(
                 padding: const EdgeInsets.all(16.0),
                 children: [
-                  // Event Banner
-                  Container(
-                    height: 220,
-                    decoration: BoxDecoration(
-                      color: Colors.pink[200],
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Pool with stars (simplified)
-                        Positioned(
-                          bottom: 40,
-                          child: Container(
-                            width: 180,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: Colors.black,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'esc',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Ladder
-                        Positioned(
-                          right: 80,
-                          bottom: 60,
-                          child: Container(
-                            width: 40,
-                            height: 80,
-                            color: Colors.transparent,
-                            child: Column(
-                              children: [
-                                Container(height: 2, color: Colors.white),
-                                const SizedBox(height: 10),
-                                Container(height: 2, color: Colors.white),
-                                const SizedBox(height: 10),
-                                Container(height: 2, color: Colors.white),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // Camera icon
-                        Positioned(
-                          bottom: 10,
-                          right: 10,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[600],
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                  // Event Banner with image upload
+                  EventBannerUpload(
+                    onImageSelected: (File file) {
+                      setState(() {
+                        _eventBannerImage = file;
+                      });
+                    },
                   ),
                   const SizedBox(height: 20),
 
@@ -553,7 +813,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
                                 _isLoading = true;
                               });
 
-                              // Process event creation
+                              // Process event creation with image
                               final eventData = {
                                 'name': _eventNameController.text,
                                 'startTime': _startTime,
@@ -562,7 +822,9 @@ class _CreateEventPageState extends State<CreateEventPage> {
                                 'description': _descriptionController.text,
                                 'isPublic': _isPublic,
                                 'participantLimit': _participantLimit,
-                                'category': _selectedCategory, // Add category
+                                'category': _selectedCategory,
+                                'bannerImage':
+                                    _eventBannerImage, // Add the image file
                               };
 
                               // Save to MongoDB
@@ -704,6 +966,59 @@ class TimeSelectionTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// Add this widget to display an image from GridFS elsewhere in your app
+class GridFSImage extends StatelessWidget {
+  final String imageId;
+  final GridFSService gridFSService;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+
+  const GridFSImage({
+    Key? key,
+    required this.imageId,
+    required this.gridFSService,
+    this.fit = BoxFit.cover,
+    this.width,
+    this.height,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List?>(
+      future: gridFSService.getImageBytes(imageId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            width: width,
+            height: height,
+            color: Colors.grey[300],
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        } else if (snapshot.hasError ||
+            !snapshot.hasData ||
+            snapshot.data == null) {
+          return Container(
+            width: width,
+            height: height,
+            color: Colors.grey[300],
+            child: const Center(
+              child: Icon(Icons.error_outline, size: 40, color: Colors.red),
+            ),
+          );
+        } else {
+          return Image.memory(
+            snapshot.data!,
+            fit: fit,
+            width: width,
+            height: height,
+          );
+        }
+      },
     );
   }
 }
