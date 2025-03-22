@@ -20,51 +20,12 @@ class _ExplorePageState extends State<ExplorePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: const Text('Explore'), elevation: 0),
       backgroundColor: Colors.grey[200],
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
             // App Bar with Explore title and map icon
-            SliverAppBar(
-              backgroundColor: Colors.white,
-              pinned: true,
-              title: Row(
-                children: [
-                  // Profile icon with green background
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.emoji_emotions,
-                      color: Colors.black,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Explore',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                // Map button
-                IconButton(
-                  icon: const Icon(Icons.map, color: Colors.black, size: 28),
-                  onPressed: () {
-                    // Open map view
-                  },
-                ),
-              ],
-            ),
 
             // City section
             SliverToBoxAdapter(
