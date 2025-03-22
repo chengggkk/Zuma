@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'mongodb_service.dart';
+import 'qr_code.dart'; // Import the QR code page
 
 class EventDetailPage extends StatefulWidget {
   final String eventId;
@@ -85,6 +86,24 @@ class _EventDetailPageState extends State<EventDetailPage> {
       });
       print("Error fetching event: $e");
     }
+  }
+
+  // Navigate to QR code page
+  void _navigateToQRCode() {
+    if (_event == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => QRCodePage(
+              eventId: widget.eventId,
+              eventTitle: _event!.name,
+              userName: widget.currentUserEmail,
+              registrationTime: DateTime.now(),
+            ),
+      ),
+    );
   }
 
   // Update the _joinEvent method to properly handle the event ID
@@ -328,33 +347,78 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.add_circle_outline,
-                                color: Colors.white,
-                                size: 16,
+                        Row(
+                          children: [
+                            // Add to Calendar button
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
                               ),
-                              SizedBox(width: 4),
-                              Text(
-                                'Add to Calendar',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.add_circle_outline,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Add to Calendar',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(width: 8),
+
+                            // QR Code button - only show if user is attending
+                            if (_isAttending)
+                              GestureDetector(
+                                onTap: _navigateToQRCode,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.5),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.qr_code,
+                                        color: Colors.white,
+                                        size: 16,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Show QR Code',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
+                          ],
                         ),
                       ],
                     ),
@@ -570,31 +634,38 @@ class _EventDetailPageState extends State<EventDetailPage> {
           right: 16,
           child:
               _isAttending
-                  ? ElevatedButton(
-                    onPressed: null, // Button is disabled
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey.shade400,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.check_circle, size: 24),
-                        SizedBox(width: 8),
-                        Text(
-                          'Already Applied',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                  ? Row(
+                    children: [
+                      // Show QR Code button
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _navigateToQRCode,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF8E77AC),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 2,
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.qr_code, size: 24),
+                              SizedBox(width: 8),
+                              Text(
+                                'Show QR Code',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   )
                   : ElevatedButton(
                     onPressed: _isJoining ? null : _joinEvent,

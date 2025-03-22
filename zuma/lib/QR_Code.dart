@@ -31,7 +31,7 @@ class QRCodePage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('活動入場 QR Code'),
+        title: const Text('Event Entry QR Code'),
         backgroundColor: const Color(0xFF8E77AC),
       ),
       body: Container(
@@ -73,7 +73,7 @@ class QRCodePage extends StatelessWidget {
                           ),
                           SizedBox(width: 6),
                           Text(
-                            '註冊確認',
+                            'Registration Confirmed',
                             style: TextStyle(
                               color: Color(0xFF8E77AC),
                               fontWeight: FontWeight.w500,
@@ -119,7 +119,7 @@ class QRCodePage extends StatelessWidget {
                 child: Column(
                   children: [
                     const Text(
-                      '請於活動當天出示此 QR Code',
+                      'Please present this QR Code on the day of the event',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
@@ -127,7 +127,7 @@ class QRCodePage extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      '報名時間: ${_formatDateTime(registrationTime)}',
+                      'Registration time: ${_formatDateTime(registrationTime)}',
                       style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 20),
@@ -135,11 +135,13 @@ class QRCodePage extends StatelessWidget {
                       onPressed: () {
                         // Implement save to gallery functionality
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('QR Code 已儲存至相簿')),
+                          const SnackBar(
+                            content: Text('QR Code saved to gallery'),
+                          ),
                         );
                       },
                       icon: const Icon(Icons.download),
-                      label: const Text('儲存至相簿'),
+                      label: const Text('Save to Gallery'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF8E77AC),
                         side: const BorderSide(color: Color(0xFF8E77AC)),
