@@ -28,7 +28,7 @@ class _BottomNavBarWithUserState extends State<BottomNavBarWithUser> {
     _pages = [
       HomePage(userEmail: widget.userEmail), // Pass the userEmail parameter
       ExplorePage(currentUserEmail: widget.userEmail), // Pass currentUserEmail
-      const ScanPage(),
+      const ScanPage(), // No permissions handling in the navigation
       CreateEventPage(
         userEmail: widget.userEmail,
       ), // Pass userEmail to CreateEventPage
@@ -37,6 +37,7 @@ class _BottomNavBarWithUserState extends State<BottomNavBarWithUser> {
   }
 
   void _onItemTapped(int index) {
+    // Direct navigation without permission checks
     setState(() {
       _selectedIndex = index;
     });

@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 
 class ScanPage extends StatefulWidget {
@@ -11,59 +10,84 @@ class ScanPage extends StatefulWidget {
   State<ScanPage> createState() => _ScanPageState();
 }
 
-class _ScanPageState extends State<ScanPage> {
+class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
   QRViewController? qrController;
   Barcode? result;
   bool isFlashOn = false;
-  bool isCameraPermissionGranted = false;
 
   // Camera controller for the new implementation
-  late CameraController cameraController;
-  late List<CameraDescription> cameras;
+  CameraController? cameraController;
+  List<CameraDescription>? cameras;
   bool isCameraInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _requestCameraPermission();
+    WidgetsBinding.instance.addObserver(this);
     _initializeCamera();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final CameraController? controller = cameraController;
+
+    // App state changed before we got the chance to initialize.
+    if (controller == null || !controller.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive) {
+      controller.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initializeCamera();
+    }
   }
 
   Future<void> _initializeCamera() async {
     try {
       // Get available cameras
       cameras = await availableCameras();
-      if (cameras.isEmpty) {
+      if (cameras == null || cameras!.isEmpty) {
+        print('No cameras available');
         return;
       }
 
       // Initialize camera controller with the first camera (usually back camera)
-      cameraController = CameraController(cameras[0], ResolutionPreset.max);
+      cameraController = CameraController(
+        cameras![0],
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
 
       // Initialize the controller and update the UI
-      await cameraController.initialize();
+      await cameraController!.initialize();
+
       if (!mounted) return;
 
       setState(() {
         isCameraInitialized = true;
+        print('Camera initialized successfully');
       });
 
       // Enable flash if needed
       if (isFlashOn) {
-        await cameraController.setFlashMode(FlashMode.torch);
+        await cameraController!.setFlashMode(FlashMode.torch);
       }
     } catch (e) {
       print('Error initializing camera: $e');
+      // Try legacy QR view if camera fails
+      setState(() {
+        isCameraInitialized = false;
+      });
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     qrController?.dispose();
-    if (isCameraInitialized) {
-      cameraController.dispose();
-    }
+    cameraController?.dispose();
     super.dispose();
   }
 
@@ -80,47 +104,11 @@ class _ScanPageState extends State<ScanPage> {
       }
     }
 
-    if (isCameraInitialized) {
+    if (cameraController != null && cameraController!.value.isInitialized) {
       if (Platform.isAndroid) {
-        cameraController.pausePreview();
+        cameraController!.pausePreview();
       } else if (Platform.isIOS) {
-        cameraController.resumePreview();
-      }
-    }
-  }
-
-  Future<void> _requestCameraPermission() async {
-    final status = await Permission.camera.request();
-
-    if (status.isGranted) {
-      setState(() {
-        isCameraPermissionGranted = true;
-      });
-    } else if (status.isPermanentlyDenied) {
-      // If permission is permanently denied, open app settings
-      await openAppSettings();
-    } else {
-      // Show a dialog explaining why we need camera permission
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder:
-              (BuildContext context) => AlertDialog(
-                title: const Text('Camera Permission'),
-                content: const Text(
-                  'Camera permission is required to scan QR codes. Please grant camera permission to continue.',
-                ),
-                actions: <Widget>[
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      _requestCameraPermission(); // Try requesting again
-                    },
-                    child: const Text('Try Again'),
-                  ),
-                ],
-              ),
-        );
+        cameraController!.resumePreview();
       }
     }
   }
@@ -134,9 +122,6 @@ class _ScanPageState extends State<ScanPage> {
 
       // You can handle the scanned result here
       if (result != null) {
-        // Optionally pause camera when a QR code is detected
-        // controller.pauseCamera();
-
         // Show a snackbar with the result
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -149,21 +134,31 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   void _toggleFlash() async {
-    if (isCameraInitialized) {
+    if (isCameraInitialized && cameraController != null) {
       // Using CameraController for flash
-      if (isFlashOn) {
-        await cameraController.setFlashMode(FlashMode.off);
-      } else {
-        await cameraController.setFlashMode(FlashMode.torch);
+      try {
+        if (isFlashOn) {
+          await cameraController!.setFlashMode(FlashMode.off);
+        } else {
+          await cameraController!.setFlashMode(FlashMode.torch);
+        }
+        setState(() {
+          isFlashOn = !isFlashOn;
+        });
+      } catch (e) {
+        print('Error toggling flash: $e');
       }
-    } else {
+    } else if (qrController != null) {
       // Fallback to QR controller for flash
-      await qrController?.toggleFlash();
+      try {
+        await qrController!.toggleFlash();
+        setState(() {
+          isFlashOn = !isFlashOn;
+        });
+      } catch (e) {
+        print('Error toggling QR flash: $e');
+      }
     }
-
-    setState(() {
-      isFlashOn = !isFlashOn;
-    });
   }
 
   @override
@@ -173,7 +168,7 @@ class _ScanPageState extends State<ScanPage> {
         title: const Text('Scan QR Code'),
         elevation: 0,
         actions: [
-          if (isCameraPermissionGranted)
+          if (isCameraInitialized || qrController != null)
             IconButton(
               icon: Icon(isFlashOn ? Icons.flash_on : Icons.flash_off),
               onPressed: _toggleFlash,
@@ -181,36 +176,19 @@ class _ScanPageState extends State<ScanPage> {
         ],
       ),
       body:
-          !isCameraPermissionGranted
-              ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.camera_alt, size: 80, color: Colors.grey),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Camera permission is required',
-                      style: TextStyle(fontSize: 18),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () async {
-                        await _requestCameraPermission();
-                        // Force rebuild after permission request
-                        if (mounted) setState(() {});
-                      },
-                      child: const Text('Request Permission'),
-                    ),
-                  ],
-                ),
-              )
-              : isCameraInitialized
+          isCameraInitialized &&
+                  cameraController != null &&
+                  cameraController!.value.isInitialized
               ? _buildCameraView()
               : _buildLegacyQRView(),
     );
   }
 
   Widget _buildCameraView() {
+    if (cameraController == null || !cameraController!.value.isInitialized) {
+      return const Center(child: Text('Camera not initialized'));
+    }
+
     return Column(
       children: [
         Expanded(
@@ -218,7 +196,7 @@ class _ScanPageState extends State<ScanPage> {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              CameraPreview(cameraController),
+              CameraPreview(cameraController!),
               // QR scan overlay
               Container(
                 decoration: BoxDecoration(
@@ -249,6 +227,12 @@ class _ScanPageState extends State<ScanPage> {
                       : 'Scan a QR code',
                   style: const TextStyle(fontSize: 16),
                   textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                // Debug info
+                Text(
+                  'Camera active: ${cameraController!.value.isInitialized}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),
