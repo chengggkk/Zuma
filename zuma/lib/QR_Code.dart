@@ -201,7 +201,7 @@ class _QRCodePageState extends State<QRCodePage> {
         "5",
       ];
       var proofResult = await _moproFlutterPlugin.semaphoreProve(
-        "idSecret",
+        "secret",
         leaves,
         "signal",
         "externalNullifier",
@@ -219,6 +219,12 @@ class _QRCodePageState extends State<QRCodePage> {
       // List<String> separated = combined.split('\n');
       // String proof = separated[0]; // The first part (proof)
       // String inputs = separated[1]; // The second part (inputs)
+
+      // bool? valid = await _moproFlutterPlugin.semaphoreVerify(
+      //   proof,
+      //   inputs,
+      // );
+      // print(valid);
 
       return combined;
     } on PlatformException catch (e) {

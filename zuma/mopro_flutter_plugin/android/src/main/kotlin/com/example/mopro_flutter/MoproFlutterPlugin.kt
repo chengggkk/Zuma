@@ -8,6 +8,7 @@ import io.flutter.plugin.common.MethodChannel.Result
 
 import uniffi.mopro.semaphoreProve
 import uniffi.mopro.semaphoreVerify
+import uniffi.mopro.ProofResult
 
 import io.flutter.plugin.common.StandardMethodCodec
 /** MoproFlutterPlugin */
@@ -100,6 +101,21 @@ class MoproFlutterPlugin : FlutterPlugin, MethodCallHandler {
             )
 
             result.success(resMap)
+        } else if (call.method == "semaphoreVerify") {
+            val proof = call.argument<String>("proof") ?: return result.error(
+                "ARGUMENT_ERROR",
+                "Missing proof",
+                null
+            )
+            val inputs = call.argument<String>("inputs") ?: return result.error(
+                "ARGUMENT_ERROR",
+                "Missing inputs",
+                null
+            )
+
+            val proofResult = ProofResult(proof, inputs)
+            val valid = semaphoreVerify(proofResult)
+            result.success(valid)
         } else {
             result.notImplemented()
         }

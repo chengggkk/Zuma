@@ -34,4 +34,8 @@ class MoproFlutter {
     return await MoproFlutterPlatform.instance
         .semaphoreProve(idSecret, leaves, signal, externalNullifier);
   }
+
+  Future<bool?> semaphoreVerify(String proof, String inputs) async {
+    return await MoproFlutterPlatform.instance.semaphoreVerify(proof, inputs);
+  }
 }

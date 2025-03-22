@@ -47,4 +47,15 @@ class MethodChannelMoproFlutter extends MoproFlutterPlatform {
 
     return semaphoreProveResult;
   }
+
+  @override
+  Future<bool?> semaphoreVerify(String proof, String inputs) async {
+    final valid = await methodChannel
+        .invokeMethod<bool>('semaphoreVerify', {
+      'proof': proof,
+      'inputs': inputs,
+    });
+
+    return valid;
+  }
 }

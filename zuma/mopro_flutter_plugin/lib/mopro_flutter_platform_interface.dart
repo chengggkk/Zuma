@@ -32,4 +32,8 @@ abstract class MoproFlutterPlatform extends PlatformInterface {
       List<String> leaves, String signal, String externalNullifier) {
     throw UnimplementedError('semaphoreProve() has not been implemented.');
   }
+
+  Future<bool?> semaphoreVerify(String proof, String inputs) {
+    throw UnimplementedError('semaphoreVerify() has not been implemented.');
+  }
 }

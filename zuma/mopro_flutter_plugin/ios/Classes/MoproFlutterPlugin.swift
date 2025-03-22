@@ -77,6 +77,27 @@ public class MoproFlutterPlugin: NSObject, FlutterPlugin {
             details: error.localizedDescription))
       }
 
+    case "semaphoreVerify":
+      guard let args = call.arguments as? [String: Any],
+        let proof = args["proof"] as? String,
+        let inputs = args["inputs"] as? String
+      else {
+        result(FlutterError(code: "ARGUMENT_ERROR", message: "Missing arguments", details: nil))
+        return
+      }
+
+      do {
+        // Call the function from mopro.swift
+        let proofResult = ProofResult(inputs: inputs, proof: proof)
+        let valid = try semaphoreVerify(proof: proofResult)
+        result(valid)
+      } catch {
+        result(
+          FlutterError(
+            code: "PROOF_VERIFICATION_ERROR", message: "Failed to verify proof",
+            details: error.localizedDescription))
+      }
+
     default:
       result(FlutterMethodNotImplemented)
     }
