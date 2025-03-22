@@ -13,20 +13,57 @@ class ScanPage extends StatefulWidget {
 
 class _ScanPageState extends State<ScanPage> {
   final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
-  QRViewController? controller;
+  QRViewController? qrController;
   Barcode? result;
   bool isFlashOn = false;
   bool isCameraPermissionGranted = false;
+
+  // Camera controller for the new implementation
+  late CameraController cameraController;
+  late List<CameraDescription> cameras;
+  bool isCameraInitialized = false;
 
   @override
   void initState() {
     super.initState();
     _requestCameraPermission();
+    _initializeCamera();
+  }
+
+  Future<void> _initializeCamera() async {
+    try {
+      // Get available cameras
+      cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        return;
+      }
+
+      // Initialize camera controller with the first camera (usually back camera)
+      cameraController = CameraController(cameras[0], ResolutionPreset.max);
+
+      // Initialize the controller and update the UI
+      await cameraController.initialize();
+      if (!mounted) return;
+
+      setState(() {
+        isCameraInitialized = true;
+      });
+
+      // Enable flash if needed
+      if (isFlashOn) {
+        await cameraController.setFlashMode(FlashMode.torch);
+      }
+    } catch (e) {
+      print('Error initializing camera: $e');
+    }
   }
 
   @override
   void dispose() {
-    controller?.dispose();
+    qrController?.dispose();
+    if (isCameraInitialized) {
+      cameraController.dispose();
+    }
     super.dispose();
   }
 
@@ -35,11 +72,19 @@ class _ScanPageState extends State<ScanPage> {
   @override
   void reassemble() {
     super.reassemble();
-    if (controller != null) {
+    if (qrController != null) {
       if (Platform.isAndroid) {
-        controller!.pauseCamera();
+        qrController!.pauseCamera();
       } else if (Platform.isIOS) {
-        controller!.resumeCamera();
+        qrController!.resumeCamera();
+      }
+    }
+
+    if (isCameraInitialized) {
+      if (Platform.isAndroid) {
+        cameraController.pausePreview();
+      } else if (Platform.isIOS) {
+        cameraController.resumePreview();
       }
     }
   }
@@ -81,7 +126,7 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   void _onQRViewCreated(QRViewController controller) {
-    this.controller = controller;
+    qrController = controller;
     controller.scannedDataStream.listen((scanData) {
       setState(() {
         result = scanData;
@@ -104,7 +149,18 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   void _toggleFlash() async {
-    await controller?.toggleFlash();
+    if (isCameraInitialized) {
+      // Using CameraController for flash
+      if (isFlashOn) {
+        await cameraController.setFlashMode(FlashMode.off);
+      } else {
+        await cameraController.setFlashMode(FlashMode.torch);
+      }
+    } else {
+      // Fallback to QR controller for flash
+      await qrController?.toggleFlash();
+    }
+
     setState(() {
       isFlashOn = !isFlashOn;
     });
@@ -148,44 +204,98 @@ class _ScanPageState extends State<ScanPage> {
                   ],
                 ),
               )
-              : Column(
-                children: [
-                  Expanded(
-                    flex: 5,
-                    child: QRView(
-                      key: qrKey,
-                      onQRViewCreated: _onQRViewCreated,
-                      overlay: QrScannerOverlayShape(
-                        borderColor: Theme.of(context).primaryColor,
-                        borderRadius: 10,
-                        borderLength: 30,
-                        borderWidth: 10,
-                        cutOutSize: MediaQuery.of(context).size.width * 0.8,
-                      ),
-                    ),
+              : isCameraInitialized
+              ? _buildCameraView()
+              : _buildLegacyQRView(),
+    );
+  }
+
+  Widget _buildCameraView() {
+    return Column(
+      children: [
+        Expanded(
+          flex: 5,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CameraPreview(cameraController),
+              // QR scan overlay
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Theme.of(context).primaryColor,
+                    width: 10,
                   ),
-                  Expanded(
-                    flex: 1,
-                    child: Container(
-                      color: Colors.white,
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            result != null
-                                ? 'QR Code: ${result!.code}'
-                                : 'Scan a QR code',
-                            style: const TextStyle(fontSize: 16),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                width: MediaQuery.of(context).size.width * 0.8,
+                height: MediaQuery.of(context).size.width * 0.8,
               ),
+            ],
+          ),
+        ),
+        Expanded(
+          flex: 1,
+          child: Container(
+            color: Colors.white,
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  result != null
+                      ? 'QR Code: ${result!.code}'
+                      : 'Scan a QR code',
+                  style: const TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLegacyQRView() {
+    return Column(
+      children: [
+        Expanded(
+          flex: 5,
+          child: QRView(
+            key: qrKey,
+            onQRViewCreated: _onQRViewCreated,
+            overlay: QrScannerOverlayShape(
+              borderColor: Theme.of(context).primaryColor,
+              borderRadius: 10,
+              borderLength: 30,
+              borderWidth: 10,
+              cutOutSize: MediaQuery.of(context).size.width * 0.8,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 1,
+          child: Container(
+            color: Colors.white,
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  result != null
+                      ? 'QR Code: ${result!.code}'
+                      : 'Scan a QR code',
+                  style: const TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
