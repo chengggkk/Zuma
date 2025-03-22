@@ -41,8 +41,16 @@ class Event {
       );
     }
 
+    // Properly handle ObjectId conversion to string
+    String idString = '';
+    if (map['_id'] is ObjectId) {
+      idString = (map['_id'] as ObjectId).toHexString();
+    } else {
+      idString = map['_id'].toString();
+    }
+
     return Event(
-      id: map['_id'].toString(),
+      id: idString,
       name: map['name'] ?? '',
       startTime:
           map['startTime'] != null
@@ -138,6 +146,22 @@ class MongoDBService {
     }
   }
 
+  // Standardized method to convert any id format to ObjectId if possible
+  static dynamic _getObjectId(String id) {
+    // Clean the id string if it contains ObjectId wrapper
+    String cleanId = id;
+    if (cleanId.contains('ObjectId(') && cleanId.endsWith(')')) {
+      cleanId = cleanId.replaceAll('ObjectId("', '').replaceAll('")', '');
+    }
+
+    try {
+      return ObjectId.fromHexString(cleanId);
+    } catch (e) {
+      print("Warning: Couldn't convert to ObjectId: $e");
+      return id; // Return the original id if conversion fails
+    }
+  }
+
   // Get all events
   static Future<List<Event>> getAllEvents() async {
     try {
@@ -181,7 +205,7 @@ class MongoDBService {
     }
   }
 
-  // Find a specific event by ID
+  // Find a specific event by ID - improved implementation
   static Future<Event?> findEventById(String eventId) async {
     try {
       if (_db == null || !_db!.isConnected) {
@@ -193,38 +217,14 @@ class MongoDBService {
       }
 
       final collection = _db!.collection('events');
+      print("Looking for event with ID: $eventId");
 
-      // Clean the eventId string if it contains ObjectId wrapper
-      String cleanId = eventId;
-      if (cleanId.contains('ObjectId(') && cleanId.endsWith(')')) {
-        cleanId = cleanId.replaceAll('ObjectId("', '').replaceAll('")', '');
-      }
+      // Try to convert to ObjectId
+      final id = _getObjectId(eventId);
 
-      print("Attempting to find event with cleaned ID: $cleanId");
-
-      // Try different approaches to find the document
-      Map<String, dynamic>? eventDoc;
-
-      // Approach 1: Try with ObjectId
-      try {
-        ObjectId objectId = ObjectId.fromHexString(cleanId);
-        eventDoc = await collection.findOne(where.id(objectId));
-        print("Tried finding with ObjectId: ${objectId.toHexString()}");
-      } catch (e) {
-        print("Couldn't convert to ObjectId, trying string match: $e");
-      }
-
-      // Approach 2: If ObjectId failed or returned no results, try with string _id
-      if (eventDoc == null) {
-        print("Trying to find event with string _id");
-        eventDoc = await collection.findOne(where.eq('_id', cleanId));
-      }
-
-      // Approach 3: Try with the original ID as is
-      if (eventDoc == null) {
-        print("Trying to find event with original ID");
-        eventDoc = await collection.findOne(where.eq('_id', eventId));
-      }
+      // Create the selector based on the ID type
+      final selector = id is ObjectId ? where.id(id) : where.eq('_id', id);
+      final eventDoc = await collection.findOne(selector);
 
       if (eventDoc == null) {
         print("Event not found with ID: $eventId");
@@ -239,9 +239,7 @@ class MongoDBService {
     }
   }
 
-  // Add attendee to an event
-  // Updated addAttendeeToEvent method with proper ObjectID handling
-  // Update the addAttendeeToEvent method to work with MongoDB Atlas Free Tier
+  // Add attendee to an event - improved implementation
   static Future<bool> addAttendeeToEvent(
     String eventId,
     Attendee attendee,
@@ -256,76 +254,47 @@ class MongoDBService {
       }
 
       final collection = _db!.collection('events');
+      final id = _getObjectId(eventId);
+      print("Adding attendee to event with ID: $id (original: $eventId)");
 
-      // Clean the eventId string if needed
-      String cleanId = eventId;
-      if (cleanId.contains('ObjectId(') && cleanId.endsWith(')')) {
-        cleanId = cleanId.replaceAll('ObjectId("', '').replaceAll('")', '');
-      }
+      // Create the selector based on the ID type
+      final selector = id is ObjectId ? where.id(id) : where.eq('_id', id);
 
-      ObjectId? objectId;
-      try {
-        objectId = ObjectId.fromHexString(cleanId);
-      } catch (e) {
-        print("Couldn't convert to ObjectId, will try string match");
-      }
-
-      // First check if the attendee is already in the event
-      final selector =
-          objectId != null ? where.id(objectId) : where.eq('_id', cleanId);
-
-      // Add the "attendees.email" equals check to the selector
-      final query = selector.and(where.eq('attendees.email', attendee.email));
-
-      final existingAttendee = await collection.findOne(query);
-
-      if (existingAttendee != null) {
-        print("Attendee ${attendee.email} already exists for this event");
+      // First check if the event exists
+      final event = await collection.findOne(selector);
+      if (event == null) {
+        print("Event not found with ID: $eventId");
         return false;
       }
 
-      // Update the document to add the new attendee - Using a safer approach
-      try {
-        // For Atlas Free Tier, use findAndModify instead of update
-        final updateResult = await collection.findAndModify(
-          query:
-              objectId != null
-                  ? where.id(objectId).map['query']
-                  : where.eq('_id', cleanId).map['query'],
-          update: {
-            '\$push': {'attendees': attendee.toMap()},
-          },
-          returnNew: true,
+      // Check if the attendee already exists
+      if (event['attendees'] != null) {
+        bool attendeeExists = (event['attendees'] as List).any(
+          (a) => a['email'] == attendee.email,
         );
-
-        print("Update result: $updateResult");
-
-        // Check if the update was successful by verifying the returned document
-        return updateResult != null;
-      } catch (e) {
-        // If findAndModify fails, try the standard update as fallback
-        print("findAndModify failed, trying standard update: $e");
-        final updateResult = await collection.update(
-          objectId != null ? where.id(objectId) : where.eq('_id', cleanId),
-          {
-            '\$push': {'attendees': attendee.toMap()},
-          },
-        );
-
-        print("Standard update result: $updateResult");
-        // Safer check for MongoDB response
-        return updateResult != null &&
-            (updateResult['ok'] == 1 ||
-                (updateResult['nModified'] != null &&
-                    updateResult['nModified'] > 0));
+        if (attendeeExists) {
+          print("Attendee ${attendee.email} already exists for this event");
+          return false;
+        }
       }
+
+      // Add the attendee
+      final updateResult = await collection.update(selector, {
+        '\$push': {'attendees': attendee.toMap()},
+      });
+
+      print("Update result: $updateResult");
+      return updateResult != null &&
+          (updateResult['ok'] == 1 ||
+              (updateResult['nModified'] != null &&
+                  updateResult['nModified'] > 0));
     } catch (e) {
       print("Error adding attendee: $e");
       return false;
     }
   }
 
-  // Enhanced isUserAttending method for better error handling
+  // Check if user is attending an event - improved implementation
   static Future<bool> isUserAttending(String eventId, String email) async {
     try {
       if (_db == null || !_db!.isConnected) {
@@ -337,42 +306,39 @@ class MongoDBService {
       }
 
       final collection = _db!.collection('events');
-
-      // Clean the eventId string if needed
-      String cleanId = eventId;
-      if (cleanId.contains('ObjectId(') && cleanId.endsWith(')')) {
-        cleanId = cleanId.replaceAll('ObjectId("', '').replaceAll('")', '');
-      }
-
-      ObjectId? objectId;
-      try {
-        objectId = ObjectId.fromHexString(cleanId);
-      } catch (e) {
-        print("Couldn't convert to ObjectId, will try string match: $e");
-      }
-
-      final selector =
-          objectId != null ? where.id(objectId) : where.eq('_id', cleanId);
-
-      // Add the "attendees.email" equals check to the selector
-      final query = selector.and(where.eq('attendees.email', email));
-
-      print("Checking if user $email is attending event $eventId");
-      final event = await collection.findOne(query);
-
-      final isAttending = event != null;
+      final id = _getObjectId(eventId);
       print(
-        "User $email is ${isAttending ? '' : 'not '}attending event $eventId",
+        "Checking attendance for user $email in event $id (original: $eventId)",
       );
 
-      return isAttending;
+      // Create the selector based on the ID type
+      final selector = id is ObjectId ? where.id(id) : where.eq('_id', id);
+
+      final event = await collection.findOne(selector);
+      if (event == null) {
+        print("Event not found with ID: $eventId");
+        return false;
+      }
+
+      // Check if attendee exists in the list
+      if (event['attendees'] != null) {
+        bool attendeeExists = (event['attendees'] as List).any(
+          (a) => a['email'] == email,
+        );
+        print(
+          "User $email is ${attendeeExists ? '' : 'not '}attending event $eventId",
+        );
+        return attendeeExists;
+      }
+
+      return false;
     } catch (e) {
       print("Error checking if user is attending: $e");
       return false;
     }
   }
 
-  // Get user role for event
+  // Get user role for event - improved implementation
   static Future<String?> getUserRole(String eventId, String email) async {
     try {
       if (_db == null || !_db!.isConnected) {
@@ -384,25 +350,12 @@ class MongoDBService {
       }
 
       final collection = _db!.collection('events');
+      final id = _getObjectId(eventId);
 
-      // Clean the eventId string if needed
-      String cleanId = eventId;
-      if (cleanId.contains('ObjectId(') && cleanId.endsWith(')')) {
-        cleanId = cleanId.replaceAll('ObjectId("', '').replaceAll('")', '');
-      }
-
-      ObjectId? objectId;
-      try {
-        objectId = ObjectId.fromHexString(cleanId);
-      } catch (e) {
-        print("Couldn't convert to ObjectId, will try string match");
-      }
-
-      final selector =
-          objectId != null ? where.id(objectId) : where.eq('_id', cleanId);
+      // Create the selector based on the ID type
+      final selector = id is ObjectId ? where.id(id) : where.eq('_id', id);
 
       final event = await collection.findOne(selector);
-
       if (event == null) {
         return null;
       }
@@ -437,6 +390,40 @@ class MongoDBService {
       }
     } catch (e) {
       print("Error closing MongoDB connection: $e");
+    }
+  }
+
+  // Fixed version of getEventsForUser method
+  static Future<List<Event>> getEventsForUser(String userEmail) async {
+    try {
+      if (_db == null || !_db!.isConnected) {
+        final connected = await connect();
+        if (!connected) {
+          print("Failed to connect to MongoDB");
+          return [];
+        }
+      }
+
+      final collection = _db!.collection('events');
+      print("Finding events for user: $userEmail");
+
+      // Use a more compatible approach with mongo_dart
+      // Find events where attendees array contains an object with matching email
+      final events =
+          await collection.find({
+            'attendees': {
+              '\$elemMatch': {'email': userEmail},
+            },
+          }).toList();
+
+      print(
+        "Found ${events.length} events where user $userEmail is an attendee",
+      );
+
+      return events.map((event) => Event.fromMap(event)).toList();
+    } catch (e) {
+      print("Error fetching events for user: $e");
+      return [];
     }
   }
 }

@@ -43,6 +43,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
     });
 
     try {
+      print("Fetching event details for ID: ${widget.eventId}");
+
       // Use the MongoDBService to find the event by ID
       final event = await MongoDBService.findEventById(widget.eventId);
 
@@ -106,7 +108,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     );
   }
 
-  // Update the _joinEvent method to properly handle the event ID
+  // Improved _joinEvent method
   Future<void> _joinEvent() async {
     if (_event == null) return;
 
@@ -115,6 +117,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
     });
 
     try {
+      // Print the event ID we're trying to join
+      print("Joining event with ID: ${widget.eventId}");
+
       // Create attendee object with email from widget
       final attendee = Attendee(
         email: widget.currentUserEmail,
@@ -122,15 +127,16 @@ class _EventDetailPageState extends State<EventDetailPage> {
         joinedAt: DateTime.now(),
       );
 
-      // Add to database - use the correct eventId from widget
+      // Add to database - use the ID directly from the widget
       final result = await MongoDBService.addAttendeeToEvent(
-        widget.eventId, // This should properly pass the MongoDB ObjectId
+        widget.eventId,
         attendee,
       );
 
       if (result) {
         // Refresh event details to show updated attendee list
         await _fetchEventDetails();
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Successfully joined the event!'),
@@ -138,12 +144,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('You are already attending this event'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        // Even if we got a "false" result, refresh to ensure UI is in sync
+        await _fetchEventDetails();
       }
     } catch (e) {
       print("Error joining event: $e");
@@ -627,51 +629,45 @@ class _EventDetailPageState extends State<EventDetailPage> {
           ],
         ),
 
-        // Fixed Attend Button at the bottom
+        // Fixed Attend/QR Button at the bottom
         Positioned(
           bottom: 20,
           left: 16,
           right: 16,
           child:
               _isAttending
-                  ? Row(
-                    children: [
-                      // Show QR Code button
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _navigateToQRCode,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF8E77AC),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 2,
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.qr_code, size: 24),
-                              SizedBox(width: 8),
-                              Text(
-                                'Show QR Code',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
+                  ? ElevatedButton(
+                    onPressed: _navigateToQRCode,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF8E77AC),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.qr_code, size: 24),
+                        SizedBox(width: 8),
+                        Text(
+                          'Show QR Code',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   )
                   : ElevatedButton(
                     onPressed: _isJoining ? null : _joinEvent,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'home.dart';
 import 'navbar.dart'; // Import your BottomNavBar widget
 
 void main() {
@@ -101,7 +100,7 @@ class _AuthPageState extends State<AuthPage> {
                   ),
                 );
 
-                // Navigate to BottomNavBar instead of HomePage directly
+                // Navigate to BottomNavBar
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(builder: (context) => const BottomNavBar()),
                 );
@@ -158,7 +157,7 @@ class _AuthPageState extends State<AuthPage> {
       ),
     );
 
-    // Navigate to BottomNavBar instead of HomePage directly
+    // Navigate to BottomNavBar
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const BottomNavBar()),
     );

@@ -25,7 +25,7 @@ class _BottomNavBarState extends State<BottomNavBar> {
     super.initState();
     // Initialize pages with the required parameters
     _pages = [
-      const HomePage(),
+      HomePage(userEmail: currentUserEmail), // Pass the userEmail parameter
       ExplorePage(currentUserEmail: currentUserEmail), // Pass currentUserEmail
       const ScanPage(),
       const CreateEventPage(),
@@ -97,7 +97,7 @@ class NotificationsPage extends StatelessWidget {
               child: const Icon(Icons.notifications, color: Colors.white),
             ),
             title: Text('Notification ${index + 1}'),
-            subtitle: Text('This is a sample notification message'),
+            subtitle: const Text('This is a sample notification message'),
             trailing: Text('${index + 1}m ago'),
           );
         },
@@ -105,29 +105,3 @@ class NotificationsPage extends StatelessWidget {
     );
   }
 }
-
-// Remove placeholder classes as they're already defined in their own files
-
-// class ExplorePage extends StatelessWidget {
-//   const ExplorePage({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: const Text('Explore'), elevation: 0),
-//       body: const Center(child: Text('Explore Page Content')),
-//     );
-//   }
-// }
-
-// class ScanPage extends StatelessWidget {
-//   const ScanPage({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: const Text('Scan QR Code'), elevation: 0),
-//       body: const Center(child: Text('Scan QR Code Page Content')),
-//     );
-//   }
-// }

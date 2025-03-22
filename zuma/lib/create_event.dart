@@ -400,7 +400,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
     }
   }
 
-  // Save event to MongoDB with image
+  // Update this method in your CreateEventPage class
   Future<bool> _saveEventToMongoDB(Map<String, dynamic> eventData) async {
     try {
       if (_db == null || !_db!.isConnected) {
@@ -422,6 +422,17 @@ class _CreateEventPageState extends State<CreateEventPage> {
         imageId = await _gridFSService.uploadImage(eventData['bannerImage']);
       }
 
+      // Get current user email (you'll need to implement this based on your authentication system)
+      final String userEmail =
+          await _getCurrentUserEmail(); // Implement this method
+
+      // Create attendee for the host
+      final hostAttendee = {
+        'email': userEmail,
+        'role': 'host',
+        'joinedAt': DateTime.now().toIso8601String(),
+      };
+
       // Convert DateTime objects to ISO strings for MongoDB
       final Map<String, dynamic> eventDoc = {
         'name': eventData['name'],
@@ -431,9 +442,13 @@ class _CreateEventPageState extends State<CreateEventPage> {
         'description': eventData['description'],
         'isPublic': eventData['isPublic'],
         'participantLimit': eventData['participantLimit'],
-        'category': eventData['category'], // Add category field
-        'bannerImageId': imageId, // Add the image ID
+        'category': eventData['category'],
+        'bannerImageId': imageId,
         'createdAt': DateTime.now().toIso8601String(),
+        'hostEmail': userEmail, // Add hostEmail field
+        'attendees': [
+          hostAttendee,
+        ], // Initialize attendees array with host as first attendee
       };
 
       final result = await eventsCollection.insertOne(eventDoc);
@@ -442,6 +457,16 @@ class _CreateEventPageState extends State<CreateEventPage> {
       print("Error saving event to MongoDB: $e");
       return false;
     }
+  }
+
+  // Add this method to get the current user's email
+  Future<String> _getCurrentUserEmail() async {
+    // Implement based on your authentication system
+    // For example, if using Firebase Auth:
+    // return FirebaseAuth.instance.currentUser?.email ?? 'unknown@example.com';
+
+    // For testing purposes, you can return a static email
+    return 'user@example.com'; // Replace with actual implementation
   }
 
   @override
