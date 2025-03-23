@@ -98,6 +98,25 @@ public class MoproFlutterPlugin: NSObject, FlutterPlugin {
             details: error.localizedDescription))
       }
 
+    case "getIdCommitment":
+      guard let args = call.arguments as? [String: Any],
+        let idSecret = args["idSecret"] as? String
+      else {
+        result(FlutterError(code: "ARGUMENT_ERROR", message: "Missing arguments", details: nil))
+        return
+      }
+
+      do {
+        // Call the function from mopro.swift
+        let commitment = try getIdCommitment(idSecret: idSecret)
+        result(commitment)
+      } catch {
+        result(
+          FlutterError(
+            code: "COMMITMENT_GENERATION_ERROR", message: "Failed to generate commitment",
+            details: error.localizedDescription))
+      }
+
     default:
       result(FlutterMethodNotImplemented)
     }

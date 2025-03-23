@@ -1240,6 +1240,13 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
         return seq
     }
 }
+public func getIdCommitment(idSecret: String) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_mopro_bindings_fn_func_get_id_commitment(
+        FfiConverterString.lower(idSecret),$0
+    )
+})
+}
 public func semaphoreProve(idSecret: String, leaves: [String], signal: String, externalNullifier: String) -> ProofResult  {
     return try!  FfiConverterTypeProofResult_lift(try! rustCall() {
     uniffi_mopro_bindings_fn_func_semaphore_prove(
@@ -1272,6 +1279,9 @@ private let initializationResult: InitializationResult = {
     let scaffolding_contract_version = ffi_mopro_bindings_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
+    }
+    if (uniffi_mopro_bindings_checksum_func_get_id_commitment() != 52607) {
+        return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mopro_bindings_checksum_func_semaphore_prove() != 54481) {
         return InitializationResult.apiChecksumMismatch

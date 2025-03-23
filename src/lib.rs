@@ -15,6 +15,15 @@ struct ProofResult {
 }
 
 #[uniffi::export]
+fn get_id_commitment(id_secret: String) -> String {
+    let mut secret: [u8; 5] = [0; 5]; // Initialize with zeroes
+    let bytes = id_secret.as_bytes();
+    secret[..bytes.len().min(5)].copy_from_slice(&bytes[..bytes.len().min(5)]);
+    let id = Identity::from_secret(&mut secret, None);
+    return id.commitment().to_string();
+}
+
+#[uniffi::export]
 fn semaphore_prove(
     id_secret: String,
     leaves: Vec<String>,
@@ -90,8 +99,7 @@ mod test {
         let external_nullifier = "appId";
         let leaves = vec![
             "3".to_string(),
-            "12117908060695761916205289021945666294466648454297996401752691981878568491412"
-                .to_string(),
+            get_id_commitment(id_secret.to_string()),
             "3".to_string(),
             "4".to_string(),
             "5".to_string(),

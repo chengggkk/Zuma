@@ -50,12 +50,18 @@ class MethodChannelMoproFlutter extends MoproFlutterPlatform {
 
   @override
   Future<bool?> semaphoreVerify(String proof, String inputs) async {
-    final valid = await methodChannel
-        .invokeMethod<bool>('semaphoreVerify', {
+    final valid = await methodChannel.invokeMethod<bool>('semaphoreVerify', {
       'proof': proof,
       'inputs': inputs,
     });
 
     return valid;
+  }
+
+  @override
+  Future<String?> getIdCommitment(String idSecret) async {
+    final commitment = await methodChannel
+        .invokeMethod<String>('getIdCommitment', {'idSecret': idSecret});
+    return commitment;
   }
 }
