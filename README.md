@@ -8,7 +8,7 @@ Zuma works just like Luma, but with enhanced privacy. Users don’t need to shar
 
 ## Technology
 
-1. [Mopro](https://github.com/zkmopro/mopro): Mopro generates Rust bindings for iOS and Android, making ZK development seamless for mobile native apps.
+1. [Mopro](https://github.com/zkmopro/mopro): Mopro generates Rust bindings for iOS and Android, making ZK development seamless for mobile native apps. We use Mopro to generate bindings for Semaphore, enabling proof generation, proof verification, and identity commitment creation. Without Mopro, developers would need to manually define all fields, pairings, and functions in Flutter or other native mobile languages, making the process significantly more complex.
 2. [semaphore-rs](https://github.com/worldcoin/semaphore-rs): `semaphore-rs` integrates seamlessly with native platforms and outperforms the TypeScript implementation in terms of performance. Users can generate a membership proof for an event using a Semaphore proof, ensuring eligibility without revealing their identity, email, or any personal information—only a zero-knowledge proof.
 3. [flutter](https://flutter.dev/): Flutter is a cross-platform framework for building native mobile apps, offering a rich ecosystem of libraries that simplify access to mobile hardware features like the camera, gallery, and more.
 
