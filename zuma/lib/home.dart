@@ -28,7 +28,23 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
-    _fetchMyEvents();
+    // Initialize MongoDB before fetching events
+    _initMongoDB();
+  }
+
+  // Initialize MongoDB
+  Future<void> _initMongoDB() async {
+    try {
+      await MongoDBService.initialize();
+      print("MongoDB initialized in HomePage");
+      _fetchMyEvents();
+    } catch (e) {
+      setState(() {
+        _error = 'Error initializing MongoDB: $e';
+        _isLoading = false;
+      });
+      print("Error initializing MongoDB: $e");
+    }
   }
 
   // Fetch events where the user is an attendee
@@ -275,6 +291,17 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Ensure GridFS is initialized
+  Future<void> _ensureGridFSInitialized() async {
+    // Only initialize if not already initialized
+    if (!MongoDBService.gridFSService.isInitialized) {
+      print("GridFS not initialized in HomePage, reinitializing...");
+      await MongoDBService.initialize();
+      // Add a small delay to ensure everything is properly initialized
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+  }
+
   // Build event card for horizontal list
   Widget _buildEventCard(Event event, BuildContext context) {
     // Determine color based on category
@@ -309,6 +336,8 @@ class _HomePageState extends State<HomePage> {
                   eventId: event.id,
                   eventTitle: event.name,
                   bannerColor: cardColor,
+                  bannerImageId:
+                      event.bannerImageId, // Add the bannerImageId parameter
                   currentUserEmail: widget.userEmail,
                 ),
           ),
@@ -334,51 +363,16 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Event banner/header
+            // Event banner/header with image support
             ClipRRect(
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
               ),
-              child: Container(
+              child: SizedBox(
                 height: 120,
-                color: cardColor,
-                child: Stack(
-                  children: [
-                    // Event icon in the center
-                    Center(
-                      child: Icon(
-                        categoryIcon,
-                        size: 48,
-                        color: Colors.white.withOpacity(0.7),
-                      ),
-                    ),
-                    // Category tag if available
-                    if (event.category != null)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            event.category!,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                width: double.infinity,
+                child: _buildEventBanner(event, cardColor, categoryIcon),
               ),
             ),
 
@@ -421,6 +415,109 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+
+  // Build event banner with image support
+  Widget _buildEventBanner(
+    Event event,
+    Color cardColor,
+    IconData categoryIcon,
+  ) {
+    // Check if the event has a banner image ID
+    if (event.bannerImageId != null && event.bannerImageId!.isNotEmpty) {
+      print(
+        "Attempting to load banner image for event ${event.name}: ${event.bannerImageId}",
+      );
+
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // Banner image
+          FutureBuilder<void>(
+            // Force GridFS to initialize if needed
+            future: _ensureGridFSInitialized(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Container(
+                  color: cardColor.withOpacity(0.5),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                );
+              }
+
+              return GridFSImage(
+                imageId: event.bannerImageId!,
+                fit: BoxFit.cover,
+              );
+            },
+          ),
+
+          // Category tag overlay
+          if (event.category != null)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  event.category!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    } else {
+      // Fallback container with icon when no image is available
+      return Container(
+        color: cardColor,
+        child: Stack(
+          children: [
+            // Event icon in the center
+            Center(
+              child: Icon(
+                categoryIcon,
+                size: 48,
+                color: Colors.white.withOpacity(0.7),
+              ),
+            ),
+            // Category tag if available
+            if (event.category != null)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    event.category!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
   }
 
   // Get events for a specific day (used by the calendar)
@@ -478,18 +575,33 @@ class _HomePageState extends State<HomePage> {
               ),
               child: Row(
                 children: [
-                  Icon(
-                    event.category == 'AI'
-                        ? Icons.smart_toy
-                        : event.category == 'Blockchain'
-                        ? Icons.link
-                        : event.category == 'Art & Culture'
-                        ? Icons.palette
-                        : event.category == 'Climate'
-                        ? Icons.wb_sunny
-                        : Icons.event,
-                    color: Colors.grey[700],
-                  ),
+                  // Add a small thumbnail image if available
+                  if (event.bannerImageId != null &&
+                      event.bannerImageId!.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: GridFSImage(
+                          imageId: event.bannerImageId!,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    )
+                  else
+                    Icon(
+                      event.category == 'AI'
+                          ? Icons.smart_toy
+                          : event.category == 'Blockchain'
+                          ? Icons.link
+                          : event.category == 'Art & Culture'
+                          ? Icons.palette
+                          : event.category == 'Climate'
+                          ? Icons.wb_sunny
+                          : Icons.event,
+                      color: Colors.grey[700],
+                    ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -533,10 +645,16 @@ class _HomePageState extends State<HomePage> {
                                         : event.category == 'Climate'
                                         ? Colors.green
                                         : Colors.grey,
+                                bannerImageId:
+                                    event
+                                        .bannerImageId, // Add the bannerImageId parameter
                                 currentUserEmail: widget.userEmail,
                               ),
                         ),
-                      );
+                      ).then((_) {
+                        // Refresh events when returning
+                        _fetchMyEvents();
+                      });
                     },
                   ),
                 ],

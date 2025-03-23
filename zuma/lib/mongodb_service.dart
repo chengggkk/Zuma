@@ -151,6 +151,11 @@ class MongoDBService {
       await _db!.open();
 
       print("Connected to MongoDB successfully!");
+
+      // Initialize GridFS right after successful DB connection
+      await gridFSService.initialize(_db!);
+      print("GridFS initialized during MongoDB connection");
+
       return true;
     } catch (e) {
       print("Error connecting to MongoDB: $e");
@@ -160,16 +165,16 @@ class MongoDBService {
 
   // Initialize MongoDB and GridFS connections
   static Future<void> initialize() async {
-    if (_isInitialized) return;
+    if (_isInitialized) {
+      print("MongoDB Service already initialized");
+      return;
+    }
 
     try {
       final connected = await connect();
       if (!connected) {
         throw Exception("Failed to connect to MongoDB");
       }
-
-      // Initialize GridFS after connecting to MongoDB
-      await gridFSService.initialize(_db!);
 
       _isInitialized = true;
       print("MongoDB Service initialized successfully");
@@ -525,14 +530,31 @@ class GridFSService {
   mongo.Db? _db;
   mongo.GridFS? _gridFS;
   final Uuid _uuid = Uuid();
+  bool _isInitialized = false;
+
+  // Check if GridFS is initialized
+  bool get isInitialized => _isInitialized;
 
   // Initialize GridFS connection using existing DB connection
   Future<void> initialize(mongo.Db db) async {
+    if (_isInitialized) {
+      print("GridFS already initialized");
+      return;
+    }
+
     _db = db;
     if (_db != null && _db!.isConnected) {
-      _gridFS = mongo.GridFS(_db!, 'eventImages');
-      print("GridFS initialized successfully");
+      try {
+        _gridFS = mongo.GridFS(_db!, 'eventImages');
+        _isInitialized = true;
+        print("GridFS initialized successfully");
+      } catch (e) {
+        print("Error initializing GridFS: $e");
+        _isInitialized = false;
+        throw Exception("Failed to initialize GridFS: $e");
+      }
     } else {
+      print("Cannot initialize GridFS: Database not connected");
       throw Exception("Failed to initialize GridFS: Database not connected");
     }
   }
@@ -540,7 +562,7 @@ class GridFSService {
   // Upload an image file to GridFS and return its ID
   Future<String> uploadImage(File imageFile) async {
     try {
-      if (_gridFS == null || _db == null) {
+      if (!_isInitialized) {
         throw Exception("GridFS not initialized");
       }
 
@@ -596,6 +618,9 @@ class GridFSService {
         await chunksCollection.insert(chunkDoc);
       }
 
+      print(
+        "Successfully uploaded image to GridFS with ID: ${id.toHexString()}",
+      );
       return id.toHexString();
     } catch (e) {
       print("Error uploading image to GridFS: $e");
@@ -606,14 +631,33 @@ class GridFSService {
   // Get an image by its ID
   Future<Uint8List?> getImageBytes(String id) async {
     try {
-      if (_gridFS == null) {
-        throw Exception("GridFS not initialized");
+      if (!_isInitialized) {
+        print("GridFS not initialized for image ID: $id");
+
+        // Try to re-initialize if we have a DB connection
+        if (_db != null && _db!.isConnected) {
+          try {
+            await initialize(_db!);
+            print("Re-initialized GridFS for image retrieval");
+          } catch (e) {
+            print("Failed to re-initialize GridFS: $e");
+            return null;
+          }
+        } else {
+          return null;
+        }
       }
 
+      print("Attempting to retrieve image with ID: $id");
+
       final objectId = mongo.ObjectId.fromHexString(id);
-      final file = await _gridFS!.findOne(mongo.where.id(objectId));
+
+      // Get the files collection
+      final filesCollection = _db!.collection('eventImages.files');
+      final file = await filesCollection.findOne(mongo.where.id(objectId));
 
       if (file == null) {
+        print("File not found with ID: $id");
         return null;
       }
 
@@ -625,6 +669,13 @@ class GridFSService {
           await chunksCollection
               .find(mongo.where.eq('files_id', objectId))
               .toList();
+
+      if (chunks.isEmpty) {
+        print("No chunks found for file ID: $id");
+        return null;
+      }
+
+      print("Found ${chunks.length} chunks for image ID: $id");
 
       // Sort the chunks by n (order)
       chunks.sort((a, b) => a['n'] - b['n']);
@@ -638,10 +689,13 @@ class GridFSService {
         }
       }
 
+      print(
+        "Successfully retrieved image with ID: $id, size: ${allBytes.length} bytes",
+      );
       return Uint8List.fromList(allBytes);
     } catch (e) {
       print("Error retrieving image from GridFS: $e");
-      rethrow;
+      return null;
     }
   }
 
@@ -682,7 +736,7 @@ class GridFSImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Uint8List?>(
-      future: MongoDBService.gridFSService.getImageBytes(imageId),
+      future: _getImageData(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
@@ -691,9 +745,8 @@ class GridFSImage extends StatelessWidget {
             color: Colors.grey[300],
             child: const Center(child: CircularProgressIndicator()),
           );
-        } else if (snapshot.hasError ||
-            !snapshot.hasData ||
-            snapshot.data == null) {
+        } else if (snapshot.hasError) {
+          print("Error loading image: ${snapshot.error}");
           return Container(
             width: width,
             height: height,
@@ -702,15 +755,64 @@ class GridFSImage extends StatelessWidget {
               child: Icon(Icons.error_outline, size: 40, color: Colors.red),
             ),
           );
+        } else if (!snapshot.hasData || snapshot.data == null) {
+          print("No image data found for ID: $imageId");
+          return Container(
+            width: width,
+            height: height,
+            color: Colors.grey[300],
+            child: const Center(
+              child: Icon(
+                Icons.image_not_supported,
+                size: 40,
+                color: Colors.grey,
+              ),
+            ),
+          );
         } else {
+          print(
+            "Rendering image with ID: $imageId, size: ${snapshot.data!.length} bytes",
+          );
           return Image.memory(
             snapshot.data!,
             fit: fit,
             width: width,
             height: height,
+            errorBuilder: (context, error, stackTrace) {
+              print("Error rendering image: $error");
+              return Container(
+                width: width,
+                height: height,
+                color: Colors.grey[300],
+                child: const Center(
+                  child: Icon(Icons.broken_image, size: 40, color: Colors.red),
+                ),
+              );
+            },
           );
         }
       },
     );
+  }
+
+  // Separate method to get image data with retry logic
+  Future<Uint8List?> _getImageData() async {
+    // First try
+    var imageData = await MongoDBService.gridFSService.getImageBytes(imageId);
+
+    // If failed, ensure MongoDB service is initialized and retry
+    if (imageData == null) {
+      print("First attempt to get image failed, reinitializing MongoDB...");
+      try {
+        await MongoDBService.initialize();
+        // Wait a moment for initialization to complete
+        await Future.delayed(const Duration(milliseconds: 500));
+        imageData = await MongoDBService.gridFSService.getImageBytes(imageId);
+      } catch (e) {
+        print("Error during MongoDB reinitialization: $e");
+      }
+    }
+
+    return imageData;
   }
 }

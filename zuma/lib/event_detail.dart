@@ -7,14 +7,16 @@ class EventDetailPage extends StatefulWidget {
   final String eventId;
   final String eventTitle;
   final Color bannerColor;
-  final String currentUserEmail; // Add current user email
+  final String? bannerImageId; // Added parameter for banner image ID
+  final String currentUserEmail;
 
   const EventDetailPage({
     Key? key,
     required this.eventId,
     required this.eventTitle,
     required this.bannerColor,
-    required this.currentUserEmail, // Required parameter
+    this.bannerImageId, // Make it optional
+    required this.currentUserEmail,
   }) : super(key: key);
 
   @override
@@ -273,14 +275,27 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      // Event banner/image
-                      Center(
-                        child: Icon(
-                          categoryIcon,
-                          size: 80,
-                          color: Colors.white.withOpacity(0.7),
+                      // Use passed bannerImageId or fall back to event's bannerImageId
+                      if (widget.bannerImageId != null &&
+                          widget.bannerImageId!.isNotEmpty)
+                        GridFSImage(
+                          imageId: widget.bannerImageId!,
+                          fit: BoxFit.cover,
+                        )
+                      else if (_event!.bannerImageId != null &&
+                          _event!.bannerImageId!.isNotEmpty)
+                        GridFSImage(
+                          imageId: _event!.bannerImageId!,
+                          fit: BoxFit.cover,
+                        )
+                      else
+                        Center(
+                          child: Icon(
+                            categoryIcon,
+                            size: 80,
+                            color: Colors.white.withOpacity(0.7),
+                          ),
                         ),
-                      ),
                       // Category tag if available
                       if (_event!.category != null)
                         Positioned(
