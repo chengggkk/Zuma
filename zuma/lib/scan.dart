@@ -2,9 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'package:mopro_flutter/mopro_flutter.dart';
+import 'scan_result.dart'; // Import the scan result page
 
 class ScanPage extends StatefulWidget {
-  const ScanPage({Key? key}) : super(key: key);
+  final String? userEmail; // Add userEmail parameter
+
+  const ScanPage({Key? key, this.userEmail}) : super(key: key);
 
   @override
   State<ScanPage> createState() => _ScanPageState();
@@ -15,6 +18,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   QRViewController? qrController;
   Barcode? result;
   bool isFlashOn = false;
+  bool hasScanned = false; // Track if a scan has occurred
 
   // Add MoPro Flutter plugin
   final MoproFlutter _moproFlutterPlugin = MoproFlutter();
@@ -25,6 +29,18 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Clear any previous scan data
+    clearScanData();
+  }
+
+  // Function to clear scan data
+  void clearScanData() {
+    setState(() {
+      result = null;
+      verificationResult = null;
+      isVerifying = false;
+      hasScanned = false;
+    });
   }
 
   @override
@@ -63,22 +79,29 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     });
 
     controller.scannedDataStream.listen((scanData) {
-      setState(() {
-        result = scanData;
-      });
+      // Only process the scan if we haven't scanned yet
+      if (!hasScanned && mounted) {
+        setState(() {
+          result = scanData;
+          hasScanned = true; // Mark that we've scanned
+        });
 
-      // Show a snackbar with the result
-      if (result != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Scanned: ${result!.code}'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        // Pause the camera after the first scan
+        qrController?.pauseCamera();
 
-        // Execute verification code after scanning
-        if (result!.code != null) {
-          _executeVerification(result!.code!);
+        // Show a snackbar with the result
+        if (result != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Scanned: ${result!.code}'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+
+          // Execute verification code after scanning
+          if (result!.code != null) {
+            _executeVerification(result!.code!);
+          }
         }
       }
     });
@@ -140,6 +163,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
         });
 
         print('Verification result: $valid');
+
+        // Navigate to the result page after verification
+        _navigateToResultPage(valid);
       } else {
         // If the QR code doesn't have the expected format
         setState(() {
@@ -147,12 +173,8 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
           isVerifying = false;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid QR code format: Expected proof and inputs'),
-            duration: Duration(seconds: 3),
-          ),
-        );
+        // Navigate to the result page with false result
+        _navigateToResultPage(false);
       }
     } catch (e) {
       // Handle any errors
@@ -169,7 +191,24 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       );
 
       print('Verification error: $e');
+
+      // Navigate to the result page with false result
+      _navigateToResultPage(false);
     }
+  }
+
+  // Navigate to the result page
+  void _navigateToResultPage(bool? isValid) {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder:
+            (context) => ScanResultPage(
+              isValid: isValid ?? false,
+              userEmail:
+                  widget.userEmail, // Pass the userEmail to ScanResultPage
+            ),
+      ),
+    );
   }
 
   @override
@@ -223,9 +262,9 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
                       color: Colors.black54,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Text(
-                      'Scanning...',
-                      style: TextStyle(color: Colors.white),
+                    child: Text(
+                      hasScanned ? 'Processing...' : 'Scanning...',
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ),
                 ),
@@ -258,7 +297,15 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
-                  if (result != null && result!.code != null) ...[
+                  if (isVerifying) ...[
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Verifying QR code...',
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                      textAlign: TextAlign.center,
+                    ),
+                  ] else if (result != null && result!.code != null) ...[
                     Expanded(
                       child: SingleChildScrollView(
                         child: Container(
@@ -283,92 +330,21 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
                                 style: const TextStyle(fontSize: 16),
                                 textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: 16),
-                              // Show verification result if available
-                              if (isVerifying)
-                                const CircularProgressIndicator()
-                              else if (verificationResult != null)
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        verificationResult!
-                                            ? Colors.green.withOpacity(0.2)
-                                            : Colors.red.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        verificationResult!
-                                            ? Icons.check_circle
-                                            : Icons.cancel,
-                                        color:
-                                            verificationResult!
-                                                ? Colors.green
-                                                : Colors.red,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        verificationResult!
-                                            ? 'Verification Successful'
-                                            : 'Verification Failed',
-                                        style: TextStyle(
-                                          color:
-                                              verificationResult!
-                                                  ? Colors.green
-                                                  : Colors.red,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
                             ],
                           ),
                         ),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Add action buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            // Reset the scan result and verification
-                            setState(() {
-                              result = null;
-                              verificationResult = null;
-                              isVerifying = false;
-                            });
-                            // Resume camera if paused
-                            qrController?.resumeCamera();
-                          },
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Scan Again'),
-                        ),
-                        if (verificationResult == null &&
-                            !isVerifying &&
-                            result != null)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8.0),
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                if (result!.code != null) {
-                                  _executeVerification(result!.code!);
-                                }
-                              },
-                              icon: const Icon(Icons.verified_user),
-                              label: const Text('Verify'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context).primaryColor,
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                      ],
+                    // Reset button
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // Reset scan state and resume camera
+                        clearScanData();
+                        qrController?.resumeCamera();
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Scan Again'),
                     ),
                   ] else ...[
                     const Text(

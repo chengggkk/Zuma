@@ -127,8 +127,9 @@ class _SignInPageState extends State<SignInPage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      // Changed from "Welcome!" to "ZUMA"
                       const Text(
-                        'Welcome!',
+                        'ZUMA',
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,

@@ -33,7 +33,23 @@ class _ExplorePageState extends State<ExplorePage> {
   @override
   void initState() {
     super.initState();
-    _fetchEvents();
+    // Initialize MongoDB first
+    _initMongoDB();
+  }
+
+  // Initialize MongoDB before fetching events
+  Future<void> _initMongoDB() async {
+    try {
+      await MongoDBService.initialize();
+      print("MongoDB initialized in ExplorePage");
+      _fetchEvents();
+    } catch (e) {
+      setState(() {
+        _error = 'Error initializing MongoDB: $e';
+        _isLoading = false;
+      });
+      print(_error);
+    }
   }
 
   // Fetch events from MongoDB
@@ -156,8 +172,8 @@ class _ExplorePageState extends State<ExplorePage> {
                               onPressed: () {
                                 // View all categories
                               },
-                              child: Row(
-                                children: const [
+                              child: const Row(
+                                children: [
                                   Text(
                                     'View All',
                                     style: TextStyle(
@@ -272,7 +288,7 @@ class _ExplorePageState extends State<ExplorePage> {
 
   // Build event card from database
   Widget _buildEventCardFromDB(Event event) {
-    // Determine color based on category
+    // Determine fallback color based on category
     Color cardColor;
 
     if (event.category == 'AI') {
@@ -301,11 +317,14 @@ class _ExplorePageState extends State<ExplorePage> {
                   eventId: event.id,
                   eventTitle: event.name,
                   bannerColor: cardColor,
-                  currentUserEmail:
-                      widget.currentUserEmail, // Pass current user email
+                  bannerImageId: event.bannerImageId, // Pass banner image ID
+                  currentUserEmail: widget.currentUserEmail,
                 ),
           ),
-        );
+        ).then((_) {
+          // Refresh events when returning from detail page
+          _fetchEvents();
+        });
       },
       child: Container(
         width: 300,
@@ -326,54 +345,15 @@ class _ExplorePageState extends State<ExplorePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Event image
-            Container(
-              height: 140,
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
-              child: Stack(
-                children: [
-                  // Event icon in the center
-                  Center(
-                    child: Icon(
-                      event.category == 'AI'
-                          ? Icons.smart_toy
-                          : event.category == 'Blockchain'
-                          ? Icons.link
-                          : Icons.event,
-                      color: Colors.white,
-                      size: 48,
-                    ),
-                  ),
-                  // Tag in the top-right corner
-                  if (event.category != null)
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          event.category!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+              child: SizedBox(
+                height: 140,
+                width: double.infinity,
+                child: _buildEventBanner(event, cardColor),
               ),
             ),
             // Event details
@@ -451,6 +431,120 @@ class _ExplorePageState extends State<ExplorePage> {
         ),
       ),
     );
+  }
+
+  // Separate widget to handle banner image display with better error handling
+  Widget _buildEventBanner(Event event, Color cardColor) {
+    // Check if the event has a banner image ID
+    if (event.bannerImageId != null && event.bannerImageId!.isNotEmpty) {
+      print(
+        "Attempting to load banner image for event ${event.name}: ${event.bannerImageId}",
+      );
+
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // Banner image
+          FutureBuilder<void>(
+            // Force GridFS to initialize if needed
+            future: _ensureGridFSInitialized(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Container(
+                  color: cardColor.withOpacity(0.5),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                );
+              }
+
+              return GridFSImage(
+                imageId: event.bannerImageId!,
+                fit: BoxFit.cover,
+              );
+            },
+          ),
+
+          // Category tag overlay
+          if (event.category != null)
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  event.category!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    } else {
+      // Fallback container with icon when no image is available
+      return Container(
+        color: cardColor,
+        child: Stack(
+          children: [
+            // Event icon in the center
+            Center(
+              child: Icon(
+                event.category == 'AI'
+                    ? Icons.smart_toy
+                    : event.category == 'Blockchain'
+                    ? Icons.link
+                    : Icons.event,
+                color: Colors.white,
+                size: 48,
+              ),
+            ),
+            // Tag in the top-right corner
+            if (event.category != null)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    event.category!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+  }
+
+  // Ensure GridFS is initialized
+  Future<void> _ensureGridFSInitialized() async {
+    // Only initialize if not already initialized
+    if (!MongoDBService.gridFSService.isInitialized) {
+      print("GridFS not initialized in ExplorePage, reinitializing...");
+      await MongoDBService.initialize();
+      // Add a small delay to ensure everything is properly initialized
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
   }
 
   Widget _buildCategoryCard(CategoryItem category) {
