@@ -54,6 +54,19 @@ Users can present a QR code to attend the event, and others can scan the code to
 ### Update mopro bindings
 
 -   Refer to the getting started section in Mopro documentation: https://zkmopro.org/docs/getting-started/
+-   Update function exporting to Rust bindings. Go to [`src/lib.rs`](src/lib.rs) and export functions with `#[uniffi::export]`. Check the [built-in types](https://mozilla.github.io/uniffi-rs/latest/types/builtin_types.html) that can be exported.
+    - e.g.
+      ```rs
+      #[uniffi::export]
+      fn semaphore_prove(
+         id_secret: String,
+         leaves: Vec<String>,
+         signal: String,
+         external_nullifier: String,
+        ) -> ProofResult {
+        ...
+      }
+      ```
 -   Update the mopro bindings with the CLI
     ```sh
     mopro build
