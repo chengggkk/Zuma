@@ -13,7 +13,12 @@ class Attendee {
   final DateTime joinedAt;
   final String commitment;
 
-  Attendee({required this.email, required this.role, required this.joinedAt, required this.commitment});
+  Attendee({
+    required this.email,
+    required this.role,
+    required this.joinedAt,
+    required this.commitment,
+  });
 
   factory Attendee.fromMap(Map<String, dynamic> map) {
     return Attendee(
@@ -293,7 +298,8 @@ class MongoDBService {
 
       final collection = _db!.collection('events');
       final id = _getObjectId(eventId);
-      final selector = id is ObjectId ? where.id(id) : where.eq('_id', id);
+      final selector =
+          id is mongo.ObjectId ? mongo.where.id(id) : mongo.where.eq('_id', id);
       final event = await collection.findOne(selector);
       print("event: $event");
       if (event == null) {
@@ -302,7 +308,11 @@ class MongoDBService {
       }
 
       final attendees = event['attendees'] as List;
-      return attendees.map<Attendee>((attendee) => Attendee.fromMap(attendee as Map<String, dynamic>)).toList();
+      return attendees
+          .map<Attendee>(
+            (attendee) => Attendee.fromMap(attendee as Map<String, dynamic>),
+          )
+          .toList();
     } catch (e) {
       print("Error getting attendee from event: $e");
       return [];
