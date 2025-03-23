@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mopro_flutter/mopro_flutter.dart';
 import 'mongodb_service.dart';
 import 'qr_code.dart'; // Import the QR code page
 
@@ -28,6 +29,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   String _error = '';
   Event? _event;
   String? _userRole;
+  final MoproFlutter _moproFlutterPlugin = MoproFlutter();
 
   @override
   void initState() {
@@ -101,7 +103,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
             (context) => QRCodePage(
               eventId: widget.eventId,
               eventTitle: _event!.name,
-              userName: widget.currentUserEmail,
+              currentUserEmail: widget.currentUserEmail,
               registrationTime: DateTime.now(),
             ),
       ),
@@ -119,12 +121,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
     try {
       // Print the event ID we're trying to join
       print("Joining event with ID: ${widget.eventId}");
-
+      final commitment = await _moproFlutterPlugin.getIdCommitment(widget.currentUserEmail);
       // Create attendee object with email from widget
       final attendee = Attendee(
         email: widget.currentUserEmail,
         role: 'attendee', // Default role for new attendees
         joinedAt: DateTime.now(),
+        commitment: commitment ?? '',
       );
 
       // Add to database - use the ID directly from the widget

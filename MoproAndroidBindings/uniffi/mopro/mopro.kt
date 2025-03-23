@@ -764,6 +764,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 // when the library is loaded.
 internal interface IntegrityCheckingUniffiLib : Library {
     // Integrity check functions only
+    fun uniffi_mopro_bindings_checksum_func_get_id_commitment(): Short
+
     fun uniffi_mopro_bindings_checksum_func_semaphore_prove(): Short
 
     fun uniffi_mopro_bindings_checksum_func_semaphore_verify(): Short
@@ -810,6 +812,11 @@ internal interface UniffiLib : Library {
     }
 
     // FFI functions
+    fun uniffi_mopro_bindings_fn_func_get_id_commitment(
+        `idSecret`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
     fun uniffi_mopro_bindings_fn_func_semaphore_prove(
         `idSecret`: RustBuffer.ByValue,
         `leaves`: RustBuffer.ByValue,
@@ -1052,6 +1059,9 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if (lib.uniffi_mopro_bindings_checksum_func_get_id_commitment() != 52607.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_mopro_bindings_checksum_func_semaphore_prove() != 54481.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1653,6 +1663,16 @@ public object FfiConverterSequenceString : FfiConverterRustBuffer<List<kotlin.St
         }
     }
 }
+
+fun `getIdCommitment`(`idSecret`: kotlin.String): kotlin.String =
+    FfiConverterString.lift(
+        uniffiRustCall { _status ->
+            UniffiLib.INSTANCE.uniffi_mopro_bindings_fn_func_get_id_commitment(
+                FfiConverterString.lower(`idSecret`),
+                _status,
+            )
+        },
+    )
 
 fun `semaphoreProve`(
     `idSecret`: kotlin.String,

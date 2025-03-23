@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mopro_flutter/mopro_flutter.dart';
 import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
 import 'navbar.dart'; // Import the bottom navigation bar
@@ -343,6 +344,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
   // MongoDB connection
   mongo.Db? _db;
   final GridFSService _gridFSService = GridFSService();
+  final MoproFlutter _moproFlutterPlugin = MoproFlutter();
 
   @override
   void initState() {
@@ -427,11 +429,15 @@ class _CreateEventPageState extends State<CreateEventPage> {
       // Get current user email
       final String userEmail = await _getCurrentUserEmail();
 
+      // Get commitment for the host
+      final commitment = await _moproFlutterPlugin.getIdCommitment(userEmail);
+
       // Create attendee for the host
       final hostAttendee = {
         'email': userEmail,
         'role': 'host',
         'joinedAt': DateTime.now().toIso8601String(),
+        'commitment': commitment,
       };
 
       // Convert DateTime objects to ISO strings for MongoDB

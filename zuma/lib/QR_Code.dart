@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:my_flutter_app/mongodb_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mopro_flutter/mopro_flutter.dart';
 import 'package:mopro_flutter/mopro_types.dart';
@@ -7,14 +8,14 @@ import 'package:flutter/services.dart';
 class QRCodePage extends StatefulWidget {
   final String eventId;
   final String eventTitle;
-  final String userName;
+  final String currentUserEmail;
   final DateTime registrationTime;
 
   const QRCodePage({
     Key? key,
     required this.eventId,
     required this.eventTitle,
-    required this.userName,
+    required this.currentUserEmail,
     required this.registrationTime,
   }) : super(key: key);
 
@@ -74,7 +75,7 @@ class _QRCodePageState extends State<QRCodePage> {
     {
       "eventId": "${widget.eventId}",
       "eventTitle": "${widget.eventTitle}",
-      "user": "${widget.userName}",
+      "user": "${widget.currentUserEmail}",
       "registrationTime": "${widget.registrationTime.toIso8601String()}",
       "ticketId": "${DateTime.now().millisecondsSinceEpoch}"
     }
@@ -194,16 +195,16 @@ class _QRCodePageState extends State<QRCodePage> {
     });
 
     try {
-      var leaves = [
-        "3",
-        "12117908060695761916205289021945666294466648454297996401752691981878568491412",
-        "3",
-        "4",
-        "5",
-      ];
+      var leaves = [];
+      List<Attendee> attendees = await MongoDBService.getAttendeeFromEvent(widget.eventId);
+      print("attendees: ${attendees[0].email}");
+      for (var attendee in attendees) {
+        leaves.add(attendee.commitment);
+      }
+      print("leaves: $leaves");
       var proofResult = await _moproFlutterPlugin.semaphoreProve(
-        "secret",
-        leaves,
+        widget.currentUserEmail,
+        leaves.map((leaf) => leaf.toString()).toList(),
         "signal",
         "externalNullifier",
       );
@@ -212,17 +213,14 @@ class _QRCodePageState extends State<QRCodePage> {
         _proofResult = proofResult;
       });
 
-      print(proofResult?.proof);
-      print(proofResult?.inputs);
       String combined = '${proofResult?.proof}SPLIT${proofResult?.inputs}';
-      print(combined);
       // Separate proof and inputs
-      // List<String> separated = combined.split('SPLIT');
-      // String proof = separated[0]; // The first part (proof)
-      // String inputs = separated[1]; // The second part (inputs)
+      List<String> separated = combined.split('SPLIT');
+      String proof = separated[0]; // The first part (proof)
+      String inputs = separated[1]; // The second part (inputs)
 
-      // bool? valid = await _moproFlutterPlugin.semaphoreVerify(proof, inputs);
-      // print(valid);
+      bool? valid = await _moproFlutterPlugin.semaphoreVerify(proof, inputs);
+      print("valid: $valid");
 
       return combined;
     } on PlatformException catch (e) {

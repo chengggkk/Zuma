@@ -38,4 +38,8 @@ class MoproFlutter {
   Future<bool?> semaphoreVerify(String proof, String inputs) async {
     return await MoproFlutterPlatform.instance.semaphoreVerify(proof, inputs);
   }
+
+  Future<String?> getIdCommitment(String idSecret) async {
+    return await MoproFlutterPlatform.instance.getIdCommitment(idSecret);
+  }
 }

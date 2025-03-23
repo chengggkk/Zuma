@@ -36,4 +36,8 @@ abstract class MoproFlutterPlatform extends PlatformInterface {
   Future<bool?> semaphoreVerify(String proof, String inputs) {
     throw UnimplementedError('semaphoreVerify() has not been implemented.');
   }
+
+  Future<String?> getIdCommitment(String idSecret) {
+    throw UnimplementedError('getIdCommitment() has not been implemented.');
+  }
 }

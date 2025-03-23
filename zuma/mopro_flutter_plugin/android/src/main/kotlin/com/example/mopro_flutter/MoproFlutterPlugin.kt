@@ -116,6 +116,14 @@ class MoproFlutterPlugin : FlutterPlugin, MethodCallHandler {
             val proofResult = ProofResult(proof, inputs)
             val valid = semaphoreVerify(proofResult)
             result.success(valid)
+        } else if (call.method == "getIdCommitment") {
+            val idSecret = call.argument<String>("idSecret") ?: return result.error(
+                "ARGUMENT_ERROR",
+                "Missing idSecret",
+                null
+            )
+            val commitment = getIdCommitment(idSecret)
+            result.success(commitment)
         } else {
             result.notImplemented()
         }

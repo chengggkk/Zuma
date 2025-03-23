@@ -251,6 +251,11 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureStr
     );
 
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MOPRO_BINDINGS_FN_FUNC_GET_ID_COMMITMENT
+#define UNIFFI_FFIDEF_UNIFFI_MOPRO_BINDINGS_FN_FUNC_GET_ID_COMMITMENT
+RustBuffer uniffi_mopro_bindings_fn_func_get_id_commitment(RustBuffer id_secret, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MOPRO_BINDINGS_FN_FUNC_SEMAPHORE_PROVE
 #define UNIFFI_FFIDEF_UNIFFI_MOPRO_BINDINGS_FN_FUNC_SEMAPHORE_PROVE
 RustBuffer uniffi_mopro_bindings_fn_func_semaphore_prove(RustBuffer id_secret, RustBuffer leaves, RustBuffer signal, RustBuffer external_nullifier, RustCallStatus *_Nonnull out_status
@@ -539,6 +544,12 @@ void ffi_mopro_bindings_rust_future_free_void(uint64_t handle
 #ifndef UNIFFI_FFIDEF_FFI_MOPRO_BINDINGS_RUST_FUTURE_COMPLETE_VOID
 #define UNIFFI_FFIDEF_FFI_MOPRO_BINDINGS_RUST_FUTURE_COMPLETE_VOID
 void ffi_mopro_bindings_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_MOPRO_BINDINGS_CHECKSUM_FUNC_GET_ID_COMMITMENT
+#define UNIFFI_FFIDEF_UNIFFI_MOPRO_BINDINGS_CHECKSUM_FUNC_GET_ID_COMMITMENT
+uint16_t uniffi_mopro_bindings_checksum_func_get_id_commitment(void
+    
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_MOPRO_BINDINGS_CHECKSUM_FUNC_SEMAPHORE_PROVE

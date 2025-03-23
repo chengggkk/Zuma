@@ -96,8 +96,9 @@ class Attendee {
   final String email;
   final String role; // "host" or "attendee"
   final DateTime joinedAt;
+  final String commitment;
 
-  Attendee({required this.email, required this.role, required this.joinedAt});
+  Attendee({required this.email, required this.role, required this.joinedAt, required this.commitment});
 
   factory Attendee.fromMap(Map<String, dynamic> map) {
     return Attendee(
@@ -107,6 +108,7 @@ class Attendee {
           map['joinedAt'] != null
               ? DateTime.parse(map['joinedAt'])
               : DateTime.now(),
+      commitment: map['commitment'] ?? '',
     );
   }
 
@@ -115,6 +117,7 @@ class Attendee {
       'email': email,
       'role': role,
       'joinedAt': joinedAt.toIso8601String(),
+      'commitment': commitment,
     };
   }
 }
@@ -236,6 +239,34 @@ class MongoDBService {
     } catch (e) {
       print("Error finding event by ID: $e");
       throw Exception("Failed to fetch event details: $e");
+    }
+  }
+
+  static Future<List<Attendee>> getAttendeeFromEvent(String eventId) async {
+    try {
+      if (_db == null || !_db!.isConnected) {
+        final connected = await connect();
+        if (!connected) {
+          print("Failed to connect to MongoDB");
+          return [];
+        }
+      }
+
+      final collection = _db!.collection('events');
+      final id = _getObjectId(eventId);
+      final selector = id is ObjectId ? where.id(id) : where.eq('_id', id);
+      final event = await collection.findOne(selector);
+      print("event: $event");
+      if (event == null) {
+        print("Event not found with ID: $eventId");
+        return [];
+      }
+
+      final attendees = event['attendees'] as List;
+      return attendees.map<Attendee>((attendee) => Attendee.fromMap(attendee as Map<String, dynamic>)).toList();
+    } catch (e) {
+      print("Error getting attendee from event: $e");
+      return [];
     }
   }
 
