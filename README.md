@@ -1,5 +1,15 @@
 # Zuma
 
+<p align="center">
+<a href="https://testflight.apple.com/join/ZmHHSrmP">
+<img alt="Static Badge" src="https://img.shields.io/badge/iOS_TestFlight-Zuma-0171e3?style=for-the-badge">
+</a>
+</p>
+
+> [!NOTE]  
+> The app is currently under review by Apple. Once approved, the link will be publicly available to everyone.
+
+
 Zuma is a ZK-powered [Luma](https://lu.ma/) app.
 
 This project is inspired by **Luma** and [**Zupass**](https://github.com/proofcarryingdata/zupass). We aim to combine the _seamless user experience of native apps_ like Luma with the _strong privacy guarantees_ of zero-knowledge proofs, as seen in Zupass. To achieve this, we developed Zuma.
