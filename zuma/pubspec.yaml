@@ -46,10 +46,12 @@ dependencies:
   firebase_core: ^3.12.1
   firebase_auth: ^5.5.1
   shared_preferences: ^2.2.0
+  qr_code_scanner_plus: ^2.0.10+1
+
   mopro_flutter:
     path: ./mopro_flutter_plugin
 
-  
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
