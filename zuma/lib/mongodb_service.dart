@@ -309,7 +309,6 @@ class MongoDBService {
     }
   }
 
-  // Add attendee to an event - improved implementation
   // Add attendee to an event
   static Future<bool> addAttendeeToEvent(
     String eventId,
