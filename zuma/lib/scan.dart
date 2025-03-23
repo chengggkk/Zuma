@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:mopro_flutter/mopro_flutter.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({Key? key}) : super(key: key);
@@ -14,6 +15,11 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   QRViewController? qrController;
   Barcode? result;
   bool isFlashOn = false;
+
+  // Add MoPro Flutter plugin
+  final MoproFlutter _moproFlutterPlugin = MoproFlutter();
+  bool? verificationResult;
+  bool isVerifying = false;
 
   @override
   void initState() {
@@ -69,6 +75,11 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
             duration: const Duration(seconds: 3),
           ),
         );
+
+        // Execute verification code after scanning
+        if (result!.code != null) {
+          _executeVerification(result!.code!);
+        }
       }
     });
   }
@@ -103,6 +114,61 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _executeVerification(String scannedData) async {
+    try {
+      setState(() {
+        isVerifying = true;
+      });
+
+      // Separate proof and inputs as per your code
+      List<String> separated = scannedData.split('SPLIT');
+
+      if (separated.length >= 2) {
+        String proof = separated[0]; // The first part (proof)
+        String inputs = separated[1]; // The second part (inputs)
+
+        // Execute the verification with MoPro plugin
+        bool? valid = await _moproFlutterPlugin.semaphoreVerify(proof, inputs);
+
+        // Update state with verification result
+        setState(() {
+          verificationResult = valid;
+          isVerifying = false;
+        });
+
+        print('Verification result: $valid');
+      } else {
+        // If the QR code doesn't have the expected format
+        setState(() {
+          verificationResult = false;
+          isVerifying = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid QR code format: Expected proof and inputs'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      // Handle any errors
+      setState(() {
+        verificationResult = false;
+        isVerifying = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Verification error: ${e.toString()}'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      print('Verification error: $e');
     }
   }
 
@@ -217,6 +283,48 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
                                 style: const TextStyle(fontSize: 16),
                                 textAlign: TextAlign.center,
                               ),
+                              const SizedBox(height: 16),
+                              // Show verification result if available
+                              if (isVerifying)
+                                const CircularProgressIndicator()
+                              else if (verificationResult != null)
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        verificationResult!
+                                            ? Colors.green.withOpacity(0.2)
+                                            : Colors.red.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        verificationResult!
+                                            ? Icons.check_circle
+                                            : Icons.cancel,
+                                        color:
+                                            verificationResult!
+                                                ? Colors.green
+                                                : Colors.red,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        verificationResult!
+                                            ? 'Verification Successful'
+                                            : 'Verification Failed',
+                                        style: TextStyle(
+                                          color:
+                                              verificationResult!
+                                                  ? Colors.green
+                                                  : Colors.red,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -229,9 +337,11 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
                       children: [
                         ElevatedButton.icon(
                           onPressed: () {
-                            // Reset the scan result
+                            // Reset the scan result and verification
                             setState(() {
                               result = null;
+                              verificationResult = null;
+                              isVerifying = false;
                             });
                             // Resume camera if paused
                             qrController?.resumeCamera();
@@ -239,6 +349,25 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
                           icon: const Icon(Icons.refresh),
                           label: const Text('Scan Again'),
                         ),
+                        if (verificationResult == null &&
+                            !isVerifying &&
+                            result != null)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8.0),
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                if (result!.code != null) {
+                                  _executeVerification(result!.code!);
+                                }
+                              },
+                              icon: const Icon(Icons.verified_user),
+                              label: const Text('Verify'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).primaryColor,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ] else ...[

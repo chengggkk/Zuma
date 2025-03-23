@@ -183,7 +183,8 @@ class _QRCodePageState extends State<QRCodePage> {
   Future<String> _generateProof() async {
     // If proof already exists, return it immediately
     if (_proofResult != null) {
-      return _proofResult!.proof;
+      String combined = '${_proofResult?.proof}SPLIT${_proofResult?.inputs}';
+      return combined;
     }
 
     setState(() {
@@ -213,17 +214,14 @@ class _QRCodePageState extends State<QRCodePage> {
 
       print(proofResult?.proof);
       print(proofResult?.inputs);
-      String combined = '${proofResult?.proof}\n${proofResult?.inputs}';
-
+      String combined = '${proofResult?.proof}SPLIT${proofResult?.inputs}';
+      print(combined);
       // Separate proof and inputs
-      // List<String> separated = combined.split('\n');
+      // List<String> separated = combined.split('SPLIT');
       // String proof = separated[0]; // The first part (proof)
       // String inputs = separated[1]; // The second part (inputs)
 
-      // bool? valid = await _moproFlutterPlugin.semaphoreVerify(
-      //   proof,
-      //   inputs,
-      // );
+      // bool? valid = await _moproFlutterPlugin.semaphoreVerify(proof, inputs);
       // print(valid);
 
       return combined;
