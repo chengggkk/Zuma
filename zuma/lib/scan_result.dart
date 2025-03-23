@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
+import 'navbar.dart'; // Import the navigation bar instead of home directly
+import 'scan.dart'; // Import ScanPage for navigation back to scan
 
 class ScanResultPage extends StatelessWidget {
   final bool isValid;
+  final String? userEmail; // Add user email parameter
 
-  const ScanResultPage({Key? key, required this.isValid}) : super(key: key);
+  const ScanResultPage({
+    Key? key,
+    required this.isValid,
+    this.userEmail, // Make it optional
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -45,13 +52,12 @@ class ScanResultPage extends StatelessWidget {
               // Back to scanner button
               ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.of(context).pushReplacementNamed(
-                    '/scan',
-                  ); // Assuming you have a named route
-                  // Alternatively:
-                  // Navigator.of(context).pushReplacement(
-                  //   MaterialPageRoute(builder: (context) => const ScanPage()),
-                  // );
+                  // Navigate back to scan page with userEmail
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (context) => ScanPage(userEmail: userEmail),
+                    ),
+                  );
                 },
                 icon: const Icon(Icons.qr_code_scanner),
                 label: const Text('Scan Another Ticket'),
@@ -67,9 +73,31 @@ class ScanResultPage extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 16.0),
                 child: TextButton.icon(
                   onPressed: () {
-                    Navigator.of(
-                      context,
-                    ).pushReplacementNamed('/'); // Go to home page
+                    if (userEmail != null) {
+                      // Navigate to BottomNavBar with the user email
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder:
+                              (context) => BottomNavBarWithUser(
+                                userEmail: userEmail!,
+                                username:
+                                    null, // Username is optional in your implementation
+                              ),
+                        ),
+                      );
+                    } else {
+                      // If no user email is available, show a message or navigate to login
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'User information is missing. Please log in again.',
+                          ),
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                      // Navigate to login page
+                      Navigator.of(context).pushReplacementNamed('/');
+                    }
                   },
                   icon: const Icon(Icons.home),
                   label: const Text('Go to Home'),

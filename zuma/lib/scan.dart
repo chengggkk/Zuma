@@ -2,10 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'package:mopro_flutter/mopro_flutter.dart';
-import 'scan_result.dart';
+import 'scan_result.dart'; // Import the scan result page
 
 class ScanPage extends StatefulWidget {
-  const ScanPage({Key? key}) : super(key: key);
+  final String? userEmail; // Add userEmail parameter
+
+  const ScanPage({Key? key, this.userEmail}) : super(key: key);
 
   @override
   State<ScanPage> createState() => _ScanPageState();
@@ -199,7 +201,12 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   void _navigateToResultPage(bool? isValid) {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (context) => ScanResultPage(isValid: isValid ?? false),
+        builder:
+            (context) => ScanResultPage(
+              isValid: isValid ?? false,
+              userEmail:
+                  widget.userEmail, // Pass the userEmail to ScanResultPage
+            ),
       ),
     );
   }

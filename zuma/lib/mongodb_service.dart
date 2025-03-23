@@ -1,95 +1,10 @@
-import 'package:mongo_dart/mongo_dart.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:mongo_dart/mongo_dart.dart' as mongo;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-
-// Model class for Event
-class Event {
-  final String id;
-  final String name;
-  final DateTime startTime;
-  final DateTime endTime;
-  final String location;
-  final String description;
-  final bool isPublic;
-  final String participantLimit;
-  final String? category;
-  final DateTime createdAt;
-  final List<Attendee> attendees;
-  final String hostEmail;
-
-  Event({
-    required this.id,
-    required this.name,
-    required this.startTime,
-    required this.endTime,
-    required this.location,
-    required this.description,
-    required this.isPublic,
-    required this.participantLimit,
-    this.category,
-    required this.createdAt,
-    this.attendees = const [],
-    required this.hostEmail,
-  });
-
-  factory Event.fromMap(Map<String, dynamic> map) {
-    List<Attendee> attendeesList = [];
-    if (map['attendees'] != null) {
-      attendeesList = List<Attendee>.from(
-        (map['attendees'] as List).map(
-          (attendee) => Attendee.fromMap(attendee),
-        ),
-      );
-    }
-
-    // Properly handle ObjectId conversion to string
-    String idString = '';
-    if (map['_id'] is ObjectId) {
-      idString = (map['_id'] as ObjectId).toHexString();
-    } else {
-      idString = map['_id'].toString();
-    }
-
-    return Event(
-      id: idString,
-      name: map['name'] ?? '',
-      startTime:
-          map['startTime'] != null
-              ? DateTime.parse(map['startTime'])
-              : DateTime.now(),
-      endTime:
-          map['endTime'] != null
-              ? DateTime.parse(map['endTime'])
-              : DateTime.now(),
-      location: map['location'] ?? '',
-      description: map['description'] ?? '',
-      isPublic: map['isPublic'] ?? true,
-      participantLimit: map['participantLimit'] ?? 'Unlimited',
-      category: map['category'],
-      createdAt:
-          map['createdAt'] != null
-              ? DateTime.parse(map['createdAt'])
-              : DateTime.now(),
-      attendees: attendeesList,
-      hostEmail: map['hostEmail'] ?? '',
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'startTime': startTime.toIso8601String(),
-      'endTime': endTime.toIso8601String(),
-      'location': location,
-      'description': description,
-      'isPublic': isPublic,
-      'participantLimit': participantLimit,
-      'category': category,
-      'createdAt': createdAt.toIso8601String(),
-      'attendees': attendees.map((attendee) => attendee.toMap()).toList(),
-      'hostEmail': hostEmail,
-    };
-  }
-}
+import 'package:uuid/uuid.dart';
+import 'package:path/path.dart' as path;
 
 // Attendee model class
 class Attendee {
@@ -119,15 +34,112 @@ class Attendee {
   }
 }
 
+// Model class for Event
+class Event {
+  final String id;
+  final String name;
+  final DateTime startTime;
+  final DateTime endTime;
+  final String location;
+  final String description;
+  final bool isPublic;
+  final String participantLimit;
+  final String? category;
+  final String? bannerImageId;
+  final DateTime createdAt;
+  final List<Attendee> attendees;
+  final String hostEmail;
+
+  Event({
+    required this.id,
+    required this.name,
+    required this.startTime,
+    required this.endTime,
+    required this.location,
+    required this.description,
+    required this.isPublic,
+    required this.participantLimit,
+    this.category,
+    this.bannerImageId,
+    required this.createdAt,
+    this.attendees = const [],
+    required this.hostEmail,
+  });
+
+  factory Event.fromMap(Map<String, dynamic> map) {
+    List<Attendee> attendeesList = [];
+    if (map['attendees'] != null) {
+      attendeesList = List<Attendee>.from(
+        (map['attendees'] as List).map(
+          (attendee) => Attendee.fromMap(attendee),
+        ),
+      );
+    }
+
+    // Properly handle ObjectId conversion to string
+    String idString = '';
+    if (map['_id'] is mongo.ObjectId) {
+      idString = (map['_id'] as mongo.ObjectId).toHexString();
+    } else {
+      idString = map['_id'].toString();
+    }
+
+    return Event(
+      id: idString,
+      name: map['name'] ?? '',
+      startTime:
+          map['startTime'] != null
+              ? DateTime.parse(map['startTime'])
+              : DateTime.now(),
+      endTime:
+          map['endTime'] != null
+              ? DateTime.parse(map['endTime'])
+              : DateTime.now(),
+      location: map['location'] ?? '',
+      description: map['description'] ?? '',
+      isPublic: map['isPublic'] ?? true,
+      participantLimit: map['participantLimit'] ?? 'Unlimited',
+      category: map['category'],
+      bannerImageId: map['bannerImageId'],
+      createdAt:
+          map['createdAt'] != null
+              ? DateTime.parse(map['createdAt'])
+              : DateTime.now(),
+      attendees: attendeesList,
+      hostEmail: map['hostEmail'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'startTime': startTime.toIso8601String(),
+      'endTime': endTime.toIso8601String(),
+      'location': location,
+      'description': description,
+      'isPublic': isPublic,
+      'participantLimit': participantLimit,
+      'category': category,
+      'bannerImageId': bannerImageId,
+      'createdAt': createdAt.toIso8601String(),
+      'attendees': attendees.map((attendee) => attendee.toMap()).toList(),
+      'hostEmail': hostEmail,
+    };
+  }
+}
+
 // MongoDB Service class
 class MongoDBService {
-  static Db? _db;
+  static mongo.Db? _db;
+  static final GridFSService gridFSService = GridFSService();
+  static bool _isInitialized = false;
 
   // Connect to MongoDB
   static Future<bool> connect() async {
     try {
-      // Use your actual connection string here
+      await dotenv.load();
       final mongoUri = dotenv.env['MONGODB_URI'] ?? '';
+
       if (mongoUri.isEmpty) {
         print("MongoDB URI is empty. Please check your .env file.");
         return false;
@@ -135,7 +147,7 @@ class MongoDBService {
 
       print("Attempting to connect to MongoDB...");
 
-      _db = await Db.create(mongoUri);
+      _db = await mongo.Db.create(mongoUri);
       await _db!.open();
 
       print("Connected to MongoDB successfully!");
@@ -143,6 +155,27 @@ class MongoDBService {
     } catch (e) {
       print("Error connecting to MongoDB: $e");
       return false;
+    }
+  }
+
+  // Initialize MongoDB and GridFS connections
+  static Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    try {
+      final connected = await connect();
+      if (!connected) {
+        throw Exception("Failed to connect to MongoDB");
+      }
+
+      // Initialize GridFS after connecting to MongoDB
+      await gridFSService.initialize(_db!);
+
+      _isInitialized = true;
+      print("MongoDB Service initialized successfully");
+    } catch (e) {
+      print("Error initializing MongoDB service: $e");
+      throw Exception("Failed to initialize MongoDB: $e");
     }
   }
 
@@ -155,7 +188,7 @@ class MongoDBService {
     }
 
     try {
-      return ObjectId.fromHexString(cleanId);
+      return mongo.ObjectId.fromHexString(cleanId);
     } catch (e) {
       print("Warning: Couldn't convert to ObjectId: $e");
       return id; // Return the original id if conversion fails
@@ -196,7 +229,7 @@ class MongoDBService {
 
       final collection = _db!.collection('events');
       final events =
-          await collection.find(where.eq('category', category)).toList();
+          await collection.find(mongo.where.eq('category', category)).toList();
 
       return events.map((event) => Event.fromMap(event)).toList();
     } catch (e) {
@@ -205,7 +238,7 @@ class MongoDBService {
     }
   }
 
-  // Find a specific event by ID - improved implementation
+  // Find a specific event by ID
   static Future<Event?> findEventById(String eventId) async {
     try {
       if (_db == null || !_db!.isConnected) {
@@ -223,7 +256,8 @@ class MongoDBService {
       final id = _getObjectId(eventId);
 
       // Create the selector based on the ID type
-      final selector = id is ObjectId ? where.id(id) : where.eq('_id', id);
+      final selector =
+          id is mongo.ObjectId ? mongo.where.id(id) : mongo.where.eq('_id', id);
       final eventDoc = await collection.findOne(selector);
 
       if (eventDoc == null) {
@@ -239,7 +273,7 @@ class MongoDBService {
     }
   }
 
-  // Add attendee to an event - improved implementation
+  // Add attendee to an event
   static Future<bool> addAttendeeToEvent(
     String eventId,
     Attendee attendee,
@@ -258,7 +292,8 @@ class MongoDBService {
       print("Adding attendee to event with ID: $id (original: $eventId)");
 
       // Create the selector based on the ID type
-      final selector = id is ObjectId ? where.id(id) : where.eq('_id', id);
+      final selector =
+          id is mongo.ObjectId ? mongo.where.id(id) : mongo.where.eq('_id', id);
 
       // First check if the event exists
       final event = await collection.findOne(selector);
@@ -294,7 +329,7 @@ class MongoDBService {
     }
   }
 
-  // Check if user is attending an event - improved implementation
+  // Check if user is attending an event
   static Future<bool> isUserAttending(String eventId, String email) async {
     try {
       if (_db == null || !_db!.isConnected) {
@@ -312,7 +347,8 @@ class MongoDBService {
       );
 
       // Create the selector based on the ID type
-      final selector = id is ObjectId ? where.id(id) : where.eq('_id', id);
+      final selector =
+          id is mongo.ObjectId ? mongo.where.id(id) : mongo.where.eq('_id', id);
 
       final event = await collection.findOne(selector);
       if (event == null) {
@@ -338,7 +374,7 @@ class MongoDBService {
     }
   }
 
-  // Get user role for event - improved implementation
+  // Get user role for event
   static Future<String?> getUserRole(String eventId, String email) async {
     try {
       if (_db == null || !_db!.isConnected) {
@@ -353,7 +389,8 @@ class MongoDBService {
       final id = _getObjectId(eventId);
 
       // Create the selector based on the ID type
-      final selector = id is ObjectId ? where.id(id) : where.eq('_id', id);
+      final selector =
+          id is mongo.ObjectId ? mongo.where.id(id) : mongo.where.eq('_id', id);
 
       final event = await collection.findOne(selector);
       if (event == null) {
@@ -381,19 +418,7 @@ class MongoDBService {
     }
   }
 
-  // Close MongoDB connection
-  static Future<void> close() async {
-    try {
-      if (_db != null && _db!.isConnected) {
-        await _db!.close();
-        print("Closed MongoDB connection");
-      }
-    } catch (e) {
-      print("Error closing MongoDB connection: $e");
-    }
-  }
-
-  // Fixed version of getEventsForUser method
+  // Get events for a specific user
   static Future<List<Event>> getEventsForUser(String userEmail) async {
     try {
       if (_db == null || !_db!.isConnected) {
@@ -425,5 +450,267 @@ class MongoDBService {
       print("Error fetching events for user: $e");
       return [];
     }
+  }
+
+  // Create a new event
+  static Future<bool> createEvent(
+    Map<String, dynamic> eventData,
+    String userEmail,
+    File? bannerImage,
+  ) async {
+    try {
+      if (_db == null || !_db!.isConnected) {
+        final connected = await connect();
+        if (!connected) {
+          print("Failed to connect to MongoDB");
+          return false;
+        }
+      }
+
+      final eventsCollection = _db!.collection('events');
+
+      // Upload image if available and get ID
+      String? imageId;
+      if (bannerImage != null) {
+        imageId = await gridFSService.uploadImage(bannerImage);
+      }
+
+      // Create attendee for the host
+      final hostAttendee = {
+        'email': userEmail,
+        'role': 'host',
+        'joinedAt': DateTime.now().toIso8601String(),
+      };
+
+      // Convert DateTime objects to ISO strings for MongoDB
+      final Map<String, dynamic> eventDoc = {
+        'name': eventData['name'],
+        'startTime': eventData['startTime'].toIso8601String(),
+        'endTime': eventData['endTime'].toIso8601String(),
+        'location': eventData['location'],
+        'description': eventData['description'],
+        'isPublic': eventData['isPublic'],
+        'participantLimit': eventData['participantLimit'],
+        'category': eventData['category'],
+        'bannerImageId': imageId,
+        'createdAt': DateTime.now().toIso8601String(),
+        'hostEmail': userEmail,
+        'attendees': [hostAttendee],
+      };
+
+      final result = await eventsCollection.insertOne(eventDoc);
+      return result.isSuccess;
+    } catch (e) {
+      print("Error creating event: $e");
+      return false;
+    }
+  }
+
+  // Close MongoDB connection
+  static Future<void> close() async {
+    try {
+      if (_db != null && _db!.isConnected) {
+        await _db!.close();
+        _isInitialized = false;
+        print("Closed MongoDB connection");
+      }
+    } catch (e) {
+      print("Error closing MongoDB connection: $e");
+    }
+  }
+}
+
+// GridFS Service Class - handles image storage in MongoDB
+class GridFSService {
+  mongo.Db? _db;
+  mongo.GridFS? _gridFS;
+  final Uuid _uuid = Uuid();
+
+  // Initialize GridFS connection using existing DB connection
+  Future<void> initialize(mongo.Db db) async {
+    _db = db;
+    if (_db != null && _db!.isConnected) {
+      _gridFS = mongo.GridFS(_db!, 'eventImages');
+      print("GridFS initialized successfully");
+    } else {
+      throw Exception("Failed to initialize GridFS: Database not connected");
+    }
+  }
+
+  // Upload an image file to GridFS and return its ID
+  Future<String> uploadImage(File imageFile) async {
+    try {
+      if (_gridFS == null || _db == null) {
+        throw Exception("GridFS not initialized");
+      }
+
+      // Generate a unique filename
+      final String fileName = '${_uuid.v4()}${path.extension(imageFile.path)}';
+
+      // Read the file as bytes
+      final Uint8List fileBytes = await imageFile.readAsBytes();
+
+      // Generate a new ObjectId for the file
+      final id = mongo.ObjectId();
+
+      // Get file size
+      final int fileSize = fileBytes.length;
+
+      // Define chunk size (default is 255KB)
+      final int chunkSize = 255 * 1024;
+
+      // Calculate number of chunks
+      final int numChunks = (fileSize / chunkSize).ceil();
+
+      // Get the collections
+      final filesCollection = _db!.collection('eventImages.files');
+      final chunksCollection = _db!.collection('eventImages.chunks');
+
+      // Create file document
+      final fileDoc = {
+        '_id': id,
+        'length': fileSize,
+        'chunkSize': chunkSize,
+        'uploadDate': DateTime.now(),
+        'filename': fileName,
+        'contentType': _getContentType(imageFile.path),
+        'md5': '', // You could calculate MD5 if needed
+      };
+
+      // Insert file document
+      await filesCollection.insert(fileDoc);
+
+      // Split file into chunks and insert them
+      for (int i = 0; i < numChunks; i++) {
+        final int start = i * chunkSize;
+        final int end =
+            (i + 1) * chunkSize > fileSize ? fileSize : (i + 1) * chunkSize;
+        final Uint8List chunkData = fileBytes.sublist(start, end);
+
+        final chunkDoc = {
+          'files_id': id,
+          'n': i,
+          'data': mongo.BsonBinary.from(chunkData),
+        };
+
+        await chunksCollection.insert(chunkDoc);
+      }
+
+      return id.toHexString();
+    } catch (e) {
+      print("Error uploading image to GridFS: $e");
+      rethrow;
+    }
+  }
+
+  // Get an image by its ID
+  Future<Uint8List?> getImageBytes(String id) async {
+    try {
+      if (_gridFS == null) {
+        throw Exception("GridFS not initialized");
+      }
+
+      final objectId = mongo.ObjectId.fromHexString(id);
+      final file = await _gridFS!.findOne(mongo.where.id(objectId));
+
+      if (file == null) {
+        return null;
+      }
+
+      // Get the chunks collection
+      final chunksCollection = _db!.collection('eventImages.chunks');
+
+      // Query for all chunks belonging to this file
+      final chunks =
+          await chunksCollection
+              .find(mongo.where.eq('files_id', objectId))
+              .toList();
+
+      // Sort the chunks by n (order)
+      chunks.sort((a, b) => a['n'] - b['n']);
+
+      // Combine all chunks into a single Uint8List
+      final List<int> allBytes = [];
+      for (final chunk in chunks) {
+        final binData = chunk['data'];
+        if (binData is mongo.BsonBinary) {
+          allBytes.addAll(binData.byteList);
+        }
+      }
+
+      return Uint8List.fromList(allBytes);
+    } catch (e) {
+      print("Error retrieving image from GridFS: $e");
+      rethrow;
+    }
+  }
+
+  // Helper method to determine content type based on file extension
+  String _getContentType(String filePath) {
+    final ext = path.extension(filePath).toLowerCase();
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.gif':
+        return 'image/gif';
+      case '.webp':
+        return 'image/webp';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+}
+
+// GridFS Image Widget - reusable component for displaying images
+class GridFSImage extends StatelessWidget {
+  final String imageId;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+
+  const GridFSImage({
+    Key? key,
+    required this.imageId,
+    this.fit = BoxFit.cover,
+    this.width,
+    this.height,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List?>(
+      future: MongoDBService.gridFSService.getImageBytes(imageId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            width: width,
+            height: height,
+            color: Colors.grey[300],
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        } else if (snapshot.hasError ||
+            !snapshot.hasData ||
+            snapshot.data == null) {
+          return Container(
+            width: width,
+            height: height,
+            color: Colors.grey[300],
+            child: const Center(
+              child: Icon(Icons.error_outline, size: 40, color: Colors.red),
+            ),
+          );
+        } else {
+          return Image.memory(
+            snapshot.data!,
+            fit: fit,
+            width: width,
+            height: height,
+          );
+        }
+      },
+    );
   }
 }
